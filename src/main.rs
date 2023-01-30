@@ -49,8 +49,41 @@ pub struct Config {
     // TODO: a setting for using git instead of hg in mozilla-central.
 }
 
+#[derive(Clone, Debug)]
+pub struct Delta {
+    name: String,
+    prev: Version,
+    next: Version,
+}
+
+impl Delta {
+    fn new(name: &str) -> Self {
+        Delta {
+            name: name.to_string(),
+            prev: Version { semver: String::new(), git_hash: String::new() },
+            next: Version { semver: String::new(), git_hash: String::new() },
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Version {
+    pub semver: String,
+    pub git_hash: String,
+}
+
+impl Version {
+    pub fn to_string(&self) -> String {
+        if self.git_hash.is_empty() {
+            return self.semver.clone()
+        }
+
+        format!("{}@git:{}", self.semver, self.git_hash)
+    }
+}
+
 fn main() -> io::Result<()> {
-    let mut args = Args::parse();
+    let args = Args::parse();
 
     let cfg_path = args.config.clone().unwrap_or_else(|| "./wgpu_update.toml".into());
     let mut config_file = File::open(cfg_path)?;
@@ -59,12 +92,30 @@ fn main() -> io::Result<()> {
     config_file.read_to_string(&mut buf)?;
     let config: Config = toml::from_str(&buf).unwrap();
 
-    let previous_rev = update_wgpu(&config, &args)?;
-    args.previous_wgpu_rev = args.previous_wgpu_rev.or_else(|| Some(previous_rev.clone()));
+    let mut deltas = [
+        Delta::new("wgpu-core"),
+        Delta::new("wgpu-hal"),
+        Delta::new("wgpu-types"),
+        Delta::new("naga"),
+        Delta::new("d3d12"),
+        Delta::new("ash"),
+    ];
+
+    for delta in &mut deltas {
+        delta.prev = cargo_lock::find_version(&delta.name, &config)?;
+    }
+
+    update_wgpu(&config, &args)?;
 
     vendor_wgpu_update(&config)?;
 
-    vet_wgpu_changes(&config, &args)?;
+    // Vendoring coveniently updated the Cargo.lock file so go find the versions and hashes
+    // again to figure out the delta to change.
+    for delta in &mut deltas {
+        delta.next = cargo_lock::find_version(&delta.name, &config)?;
+    }
+
+    vet_changes(&config, &deltas)?;
 
     if args.build {
         build(&config);
@@ -73,7 +124,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn update_wgpu(config: &Config, args: &Args) -> io::Result<String> {
+fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
 
     let reviewers = args.reviewers
         .clone()
@@ -105,7 +156,7 @@ fn update_wgpu(config: &Config, args: &Args) -> io::Result<String> {
     tmp_moz_yaml_path.push("tmp.moz.yaml");
 
     println!("Parsing {:?}", moz_yaml_path);
-    let previous_revs = moz_yaml::update_moz_yaml(
+    moz_yaml::update_moz_yaml(
         io::BufReader::new(File::open(moz_yaml_path.clone())?),
         BufWriter::new(File::create(tmp_moz_yaml_path.clone())?),
         &[(wgpu_url, wgpu_rev)],
@@ -146,7 +197,7 @@ fn update_wgpu(config: &Config, args: &Args) -> io::Result<String> {
 
     println!("Done.");
 
-    Ok(previous_revs[0].clone())
+    Ok(())
 }
 
 fn vendor_wgpu_update(config: &Config) -> io::Result<()> {
@@ -171,23 +222,18 @@ fn vendor_wgpu_update(config: &Config) -> io::Result<()> {
     Ok(())
 }
 
-fn vet_wgpu_changes(config: &Config, args: &Args) -> io::Result<()> {
-    let (previous_semver, previous_rev) = cargo_lock::find_previous_wgpu_version(config)?;
-
+fn vet_changes(config: &Config, deltas: &[Delta]) -> io::Result<()> {
     let gecko_path = &config.directories.mozilla_central;
-    let wgpu_semver = previous_semver.clone(); // TODO
-    let new_rev = &args.wgpu_rev[..];
 
-    if new_rev == previous_rev {
-        println!("wgpu's git hash has not changed, no changes to vet.");
-        return Ok(());
-    }
-
-    let start_commit = format!("{previous_semver}@git:{previous_rev}");
-    let end_commit = format!("{wgpu_semver}@git:{new_rev}");
-
-    for crate_name in ["wgpu-core", "wgpu-hal", "wgpu-types"] {
-        let cmd = format!("cargo vet certify {crate_name} {start_commit} {end_commit}");
+    for delta in deltas {
+        let crate_name = &delta.name;
+        let prev = delta.prev.to_string();
+        let next = delta.next.to_string();
+        if prev == next {
+            println!("{crate_name} version has not changed ({prev}).");
+            continue;
+        }
+        let cmd = format!("cargo vet certify {crate_name} {prev} {next} --criteria safe-to-deploy");
         let args: Vec<&str> = cmd.split(' ').collect();
         println!("Running {cmd:?}");
         Command::new("./mach")
