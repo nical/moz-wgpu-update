@@ -4,11 +4,13 @@ pub fn update_moz_yaml<In: Read, Out: Write>(
     input: io::BufReader<In>,
     mut output: Out,
     updates: &[(&str, &str)],
-) -> io::Result<()> {
+) -> io::Result<Vec<String>> {
 
     let mut saw_rev_or_release = false;
     let mut new_revision = None;
     let mut prev_indent = String::new();
+
+    let mut previous_revs = Vec::new();
 
     for line in input.lines() {
         let line = line?;
@@ -34,6 +36,10 @@ pub fn update_moz_yaml<In: Read, Out: Write>(
                 }
                 ("revision", Some(new_rev)) => {
                     writeln!(output, "{indent}revision: {new_rev}{space_before_comment}{comment}")?;
+                    // TODO: should set at specific index matching the input updates instead of pushing in
+                    // random order.
+                    assert!(previous_revs.is_empty());
+                    previous_revs.push(value.to_string());
                     saw_rev_or_release = true;
                     continue;
                 }
@@ -49,7 +55,7 @@ pub fn update_moz_yaml<In: Read, Out: Write>(
         writeln!(output, "{}", line)?;
     }
 
-    Ok(())
+    Ok(previous_revs)
 }
 
 fn split_indentation(src: &str) -> (&str, &str) {
