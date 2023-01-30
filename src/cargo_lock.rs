@@ -34,14 +34,16 @@ pub fn find_version(name: &str, config: &Config) -> io::Result<Version> {
         }
 
         if line.starts_with("source = \"git") {
-            // Parsing something of the form "source = "git+https://github.com/gfx-rs/wgpu?rev={git_hash}#{git_hash}"
-            let start = line.find("rev=").unwrap() + 4;
-            let end = line.rfind('#').unwrap_or(line.len());
+            // Parsing something of the form "source = "git+https://github.com/gfx-rs/wgpu?rev={short_hash}#{long_hash}"
+            let start = line.rfind('#').unwrap_or(line.len() - 1) + 1;
+            let end = start.max(line.len() - 1);
             git_hash = Some(line[start..end].to_string());
+            println!("{name} source {:?}", git_hash);
         }
 
         if line.starts_with("source = \"registry") {
             git_hash = Some(String::new());
+            println!("{name} source from crates.io");
         }
     }
 

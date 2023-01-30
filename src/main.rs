@@ -23,10 +23,6 @@ pub struct Args {
     #[arg(short, long)]
     bug: Option<String>,
 
-    /// Who to ask the review to.
-    #[arg(short, long)]
-    reviewers: Option<String>,
-
     /// Config file to use.
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
@@ -107,7 +103,7 @@ fn main() -> io::Result<()> {
 
     update_wgpu(&config, &args)?;
 
-    vendor_wgpu_update(&config)?;
+    vendor_wgpu_update(&config, &args)?;
 
     // Vendoring coveniently updated the Cargo.lock file so go find the versions and hashes
     // again to figure out the delta to change.
@@ -115,20 +111,25 @@ fn main() -> io::Result<()> {
         delta.next = cargo_lock::find_version(&delta.name, &config)?;
     }
 
-    vet_changes(&config, &deltas)?;
+    vet_changes(&config, &args, &deltas)?;
 
     if args.build {
         build(&config);
     }
 
+    println!("\n\nAll done!");
+    if !args.build {
+        println!("Now is a good time to do a build in case there were breaking changes in wgpu-core's API.");
+    }
+
+    println!("It would also be a good idea to do a try run including the following tests:");
+    println!(" - source-test-mozlint-updatebot");
+    println!(" - source-test-vendor-rust");
+
     Ok(())
 }
 
 fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
-
-    let reviewers = args.reviewers
-        .clone()
-        .unwrap_or_else(|| "#webgpu-reviewers".into());
 
     let gecko_path = &config.directories.mozilla_central;
     let wgpu_rev = &args.wgpu_rev;
@@ -168,14 +169,9 @@ fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
 
     let mut commit_msg = String::new();
     if let Some(bug) = &args.bug {
-        commit_msg.push_str("Bug ");
-        commit_msg.push_str(&bug);
-        commit_msg.push_str(" - ");
+        commit_msg.push_str(&format!("Bug {bug} - "));
     }
-    commit_msg.push_str("Update wgpu to revision ");
-    commit_msg.push_str(&wgpu_rev);
-    commit_msg.push_str(". r=");
-    commit_msg.push_str(&reviewers);
+    commit_msg.push_str(&format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"));
 
     println!("Committing {commit_msg:?}");
 
@@ -200,8 +196,9 @@ fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
     Ok(())
 }
 
-fn vendor_wgpu_update(config: &Config) -> io::Result<()> {
+fn vendor_wgpu_update(config: &Config, args: &Args) -> io::Result<()> {
     let gecko_path = &config.directories.mozilla_central;
+
     println!("Running mach vendor rust");
     Command::new("./mach")
         .args(&["vendor", "rust"])
@@ -211,8 +208,14 @@ fn vendor_wgpu_update(config: &Config) -> io::Result<()> {
         .wait()
         .unwrap();
 
+    let mut commit_msg = String::new();
+    if let Some(bug) = &args.bug {
+        commit_msg.push_str(&format!("Bug {bug} - "));
+    }
+    commit_msg.push_str("Vendor wgpu changes. r=#webgpu-reviewers");
+    
     Command::new("hg")
-        .args(&["commit", "-m", &"Vendor wgpu changes"])
+        .args(&["commit", "-m", &commit_msg])
         .current_dir(&gecko_path)
         .spawn()
         .unwrap()
@@ -222,7 +225,7 @@ fn vendor_wgpu_update(config: &Config) -> io::Result<()> {
     Ok(())
 }
 
-fn vet_changes(config: &Config, deltas: &[Delta]) -> io::Result<()> {
+fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()> {
     let gecko_path = &config.directories.mozilla_central;
 
     for delta in deltas {
@@ -245,8 +248,14 @@ fn vet_changes(config: &Config, deltas: &[Delta]) -> io::Result<()> {
             .unwrap();
     }
 
+    let mut commit_msg = String::new();
+    if let Some(bug) = &args.bug {
+        commit_msg.push_str(&format!("Bug {bug} - "));
+    }
+    commit_msg.push_str("Vet wgpu and naga commits. r=#supply-chain-reviewers");
+
     Command::new("hg")
-        .args(&["commit", "-m", &"Vet wgpu and naga commits. r=#supply-chain-reviewers"])
+        .args(&["commit", "-m", &commit_msg])
         .current_dir(&gecko_path)
         .spawn()
         .unwrap()
