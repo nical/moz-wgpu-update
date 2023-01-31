@@ -38,12 +38,10 @@ pub fn find_version(name: &str, config: &Config) -> io::Result<Version> {
             let start = line.rfind('#').unwrap_or(line.len() - 1) + 1;
             let end = start.max(line.len() - 1);
             git_hash = Some(line[start..end].to_string());
-            println!("{name} source {:?}", git_hash);
         }
 
         if line.starts_with("source = \"registry") {
             git_hash = Some(String::new());
-            println!("{name} source from crates.io");
         }
     }
 

@@ -42,7 +42,7 @@ pub struct Directories {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub directories: Directories,
-    // TODO: a setting for using git instead of hg in mozilla-central.
+    pub vcs: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -97,21 +97,11 @@ fn main() -> io::Result<()> {
         Delta::new("ash"),
     ];
 
-    for delta in &mut deltas {
-        delta.prev = cargo_lock::find_version(&delta.name, &config)?;
-    }
-
-    update_wgpu(&config, &args)?;
-
-    vendor_wgpu_update(&config, &args)?;
-
-    // Vendoring coveniently updated the Cargo.lock file so go find the versions and hashes
-    // again to figure out the delta to change.
-    for delta in &mut deltas {
-        delta.next = cargo_lock::find_version(&delta.name, &config)?;
-    }
+    update_wgpu(&config, &args, &mut deltas)?;
 
     vet_changes(&config, &args, &deltas)?;
+
+    vendor_wgpu_update(&config, &args)?;
 
     if args.build {
         build(&config);
@@ -129,7 +119,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
+fn update_wgpu(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result<()> {
 
     let gecko_path = &config.directories.mozilla_central;
     let wgpu_rev = &args.wgpu_rev;
@@ -167,31 +157,39 @@ fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
     std::fs::rename(&tmp_cargo_toml_path, &cargo_toml_path)?;
     std::fs::rename(&tmp_moz_yaml_path, &moz_yaml_path)?;
 
+    refresh_cargo_toml_and_update_deltas(config, args, deltas)?;
+
     let mut commit_msg = String::new();
     if let Some(bug) = &args.bug {
         commit_msg.push_str(&format!("Bug {bug} - "));
     }
     commit_msg.push_str(&format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"));
 
-    println!("Committing {commit_msg:?}");
+    commit(config, &commit_msg);
 
-    //Command::new("hg")
-    //    .arg(&"diff")
-    //    .current_dir(&gecko_path)
-    //    .spawn()
-    //    .unwrap()
-    //    .wait()
-    //    .unwrap();
+    Ok(())
+}
 
-    Command::new("hg")
-        .args(&["commit", "-m", &commit_msg])
-        .current_dir(&gecko_path)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+fn refresh_cargo_toml_and_update_deltas(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result<()> {
+    let gecko_path = &config.directories.mozilla_central;
 
-    println!("Done.");
+    println!("Parse previous crate versions from Cargo.lock");
+    for delta in &mut deltas[..] {
+        delta.prev = cargo_lock::find_version(&delta.name, &config)?;
+    }
+
+    println!("Refresh Cargo.lock");
+    // Run a cargo command that will cause it to pick up the new version of the crates that we
+    // updated in wgpu_bindings/Cagro.toml (and their depdendencies) without trying to update
+    // unrelated crates. There may be other ways but this one appears to do what we want.
+    shell(gecko_path, "cargo", &["update", "--package", "wgpu-core", "--precise", &args.wgpu_rev]);
+
+    println!("Parse new crate versions from Cargo.lock");
+    // Parse Cargo.lock again to get the new version of the crates we are interested in (including
+    // the new versions of things we didn´t specify but wgpu depends on).
+    for delta in &mut deltas[..] {
+        delta.next = cargo_lock::find_version(&delta.name, &config)?;
+    }
 
     Ok(())
 }
@@ -199,14 +197,7 @@ fn update_wgpu(config: &Config, args: &Args) -> io::Result<()> {
 fn vendor_wgpu_update(config: &Config, args: &Args) -> io::Result<()> {
     let gecko_path = &config.directories.mozilla_central;
 
-    println!("Running mach vendor rust");
-    Command::new("./mach")
-        .args(&["vendor", "rust"])
-        .current_dir(&gecko_path)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+    shell(gecko_path, "./mach", &["vendor", "rust"]);
 
     let mut commit_msg = String::new();
     if let Some(bug) = &args.bug {
@@ -214,13 +205,7 @@ fn vendor_wgpu_update(config: &Config, args: &Args) -> io::Result<()> {
     }
     commit_msg.push_str("Vendor wgpu changes. r=#webgpu-reviewers");
     
-    Command::new("hg")
-        .args(&["commit", "-m", &commit_msg])
-        .current_dir(&gecko_path)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+    commit(config, &commit_msg);
 
     Ok(())
 }
@@ -236,16 +221,8 @@ fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()>
             println!("{crate_name} version has not changed ({prev}).");
             continue;
         }
-        let cmd = format!("cargo vet certify {crate_name} {prev} {next} --criteria safe-to-deploy");
-        let args: Vec<&str> = cmd.split(' ').collect();
-        println!("Running {cmd:?}");
-        Command::new("./mach")
-            .args(&args)
-            .current_dir(&gecko_path)
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
+
+        shell(&gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &prev, &next, "--criteria", "safe-to-deploy"]);
     }
 
     let mut commit_msg = String::new();
@@ -254,34 +231,42 @@ fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()>
     }
     commit_msg.push_str("Vet wgpu and naga commits. r=#supply-chain-reviewers");
 
-    Command::new("hg")
-        .args(&["commit", "-m", &commit_msg])
-        .current_dir(&gecko_path)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+    commit(config, &commit_msg);
 
     // Run cargo vet to see if there are any other new crate versions that were imported
     // besides wgpu ones (typically naga, d3d12).
     // TODO: parse the output and add them to the commit in the common cases.
-    Command::new("./mach")
-        .args(&["cargo", "vet"])
-        .current_dir(&gecko_path)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+    shell(&gecko_path, "./mach", &["cargo", "vet"]);
 
     Ok(())
 }
 
 fn build(config: &Config) {
-    Command::new("./mach")
-        .args(&["build"])
-        .current_dir(&config.directories.mozilla_central)
+    shell(&config.directories.mozilla_central, "./mach", &["build"]);
+}
+
+fn shell(directory: &PathBuf, cmd: &str, args: &[&str]) {
+    let mut cmd_str = format!("{cmd} ");
+    for arg in args {
+        cmd_str.push_str(arg);
+        cmd_str.push(' ');
+    }
+    println!("Running {cmd_str:?}");
+
+    Command::new(cmd)
+        .args(args)
+        .current_dir(directory)
         .spawn()
         .unwrap()
         .wait()
         .unwrap();
+}
+
+fn commit(config: &Config, commit_msg: &str) {
+    let mc = &config.directories.mozilla_central;
+    if config.vcs == Some("git".into()) {
+        shell(mc, "git", &["commit", "-am", commit_msg]);
+    } else {
+        shell(mc, "hg", &["commit", "-m", commit_msg]);
+    }
 }
