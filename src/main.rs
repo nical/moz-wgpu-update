@@ -1,3 +1,5 @@
+#![allow(clippy::inherent_to_string)]
+
 mod cargo_toml;
 mod moz_yaml;
 mod cargo_lock;
@@ -134,7 +136,7 @@ fn update_wgpu(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result
 
     let wgpu_url = "https://github.com/gfx-rs/wgpu";
 
-    println!("Parsing {:?}", cargo_toml_path);
+    println!("Parsing {cargo_toml_path:?}");
     cargo_toml::update_cargo_toml(
         io::BufReader::new(File::open(cargo_toml_path.clone())?),
         BufWriter::new(File::create(tmp_cargo_toml_path.clone())?),
@@ -146,7 +148,7 @@ fn update_wgpu(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result
     moz_yaml_path.push("moz.yaml");
     tmp_moz_yaml_path.push("tmp.moz.yaml");
 
-    println!("Parsing {:?}", moz_yaml_path);
+    println!("Parsing {moz_yaml_path:?}");
     moz_yaml::update_moz_yaml(
         io::BufReader::new(File::open(moz_yaml_path.clone())?),
         BufWriter::new(File::create(tmp_moz_yaml_path.clone())?),
@@ -175,7 +177,7 @@ fn refresh_cargo_toml_and_update_deltas(config: &Config, args: &Args, deltas: &m
 
     println!("Parse previous crate versions from Cargo.lock");
     for delta in &mut deltas[..] {
-        delta.prev = cargo_lock::find_version(&delta.name, &config)?;
+        delta.prev = cargo_lock::find_version(&delta.name, config)?;
     }
 
     println!("Refresh Cargo.lock");
@@ -188,7 +190,7 @@ fn refresh_cargo_toml_and_update_deltas(config: &Config, args: &Args, deltas: &m
     // Parse Cargo.lock again to get the new version of the crates we are interested in (including
     // the new versions of things we didn´t specify but wgpu depends on).
     for delta in &mut deltas[..] {
-        delta.next = cargo_lock::find_version(&delta.name, &config)?;
+        delta.next = cargo_lock::find_version(&delta.name, config)?;
     }
 
     Ok(())
@@ -222,7 +224,7 @@ fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()>
             continue;
         }
 
-        shell(&gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &prev, &next, "--criteria", "safe-to-deploy"]);
+        shell(gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &prev, &next, "--criteria", "safe-to-deploy"]);
     }
 
     let mut commit_msg = String::new();
@@ -236,7 +238,7 @@ fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()>
     // Run cargo vet to see if there are any other new crate versions that were imported
     // besides wgpu ones (typically naga, d3d12).
     // TODO: parse the output and add them to the commit in the common cases.
-    shell(&gecko_path, "./mach", &["cargo", "vet"]);
+    shell(gecko_path, "./mach", &["cargo", "vet"]);
 
     Ok(())
 }

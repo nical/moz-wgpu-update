@@ -48,7 +48,7 @@ pub fn update_cargo_toml<In: Read, Out: Write>(
     Ok(())
 }
 
-fn tokenize<'a>(src: &'a str) -> impl Iterator<Item = &'a str> + Clone {
+fn tokenize(src: &str) -> impl Iterator<Item = &str> + Clone {
     let trimmed = src.trim().split('#').next().unwrap();
     trimmed.split_ascii_whitespace()
 }

@@ -46,7 +46,7 @@ pub fn update_moz_yaml<In: Read, Out: Write>(
             }
         }
 
-        writeln!(output, "{}", line)?;
+        writeln!(output, "{line}")?;
     }
 
     Ok(())

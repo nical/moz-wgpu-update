@@ -19,10 +19,8 @@ pub fn find_version(name: &str, config: &Config) -> io::Result<Version> {
             found_package = true;
         }
 
-        if line.starts_with("[[package]]") {
-            if found_package {
-                break;
-            }
+        if line.starts_with("[[package]]") && found_package {
+            break;
         }
 
         if !found_package {
