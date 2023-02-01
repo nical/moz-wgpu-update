@@ -4,14 +4,21 @@ Scripts to automate the process of updating wgpu in mozilla-central.
 
 # Example usage
 
-Create a `wgpu_update.toml` file with information about where the various repositories are on disk, for example:
+Create a `.moz-wgpu.toml` file with information about where the various repositories are on disk, for example:
 
 ```toml
-[directories]
-wgpu = "/home/nical/dev/rust/wgpu"
-naga = "/home/nical/dev/rust/naga"
-mozilla_central = "/home/nical/dev/mozilla/mozilla-unified"
+[gecko]
+path = "/Users/nical/dev/mozilla/unified"
+vcs = "hg"
+
+[wgpu]
+path = "/Users/nical/dev/rust/wgpu"
+
+[naga]
+path = "/Users/nical/dev/rust/naga"
 ```
+
+The script will look for it in the current folder, then in the home folder. It can also be passed manually to the `update` command using `--config path/to/config/file`.
 
 Then run the script, for example:
 

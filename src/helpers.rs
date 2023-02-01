@@ -59,9 +59,9 @@ pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
 pub fn hg_histedit() -> io::Result<()> {
     let config = read_config_file(&None)?;
 
-    match Vcs::new(&config.vcs) {
-        Vcs::Mercurial =>shell(&config.directories.mozilla_central, "git", &["rebasse", "-i", "central"]),
-        Vcs::Git => shell(&config.directories.mozilla_central, "hg", &["histedit"]),
+    match Vcs::new(&config.gecko.vcs) {
+        Vcs::Mercurial =>shell(&config.gecko.path, "git", &["rebasse", "-i", "central"]),
+        Vcs::Git => shell(&config.gecko.path, "hg", &["histedit"]),
     };
 
     Ok(())
@@ -73,7 +73,7 @@ pub fn run_mach_command(args: &MachArgs) -> io::Result<()> {
     println!("mach args: {:?}", args.command);
     let arg_refs: Vec<&str> = args.command.iter().map(String::as_str).collect();
 
-    shell(&config.directories.mozilla_central, "./mach", &arg_refs);
+    shell(&config.gecko.path, "./mach", &arg_refs);
 
     Ok(())
 }
@@ -81,7 +81,7 @@ pub fn run_mach_command(args: &MachArgs) -> io::Result<()> {
 pub fn push_to_try() -> io::Result<()> {
     let config = read_config_file(&None)?;
 
-    shell(&config.directories.mozilla_central, "./mach", &["try", "--preset", "webgpu"]);
+    shell(&config.gecko.path, "./mach", &["try", "--preset", "webgpu"]);
 
     Ok(())
 }

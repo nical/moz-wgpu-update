@@ -28,16 +28,26 @@ pub enum Args {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Directories {
-    pub mozilla_central: PathBuf,
-    pub wgpu: PathBuf,
-    pub naga: PathBuf,
+struct Config {
+    gecko: Gecko,
+    wgpu: Option<Wgpu>,
+    naga: Option<Naga>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Config {
-    pub directories: Directories,
-    pub vcs: Option<String>,
+pub struct Gecko {
+    path: PathBuf,
+    vcs: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Wgpu {
+    path: PathBuf,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Naga {
+    path: PathBuf,
 }
 
 #[derive(Copy, Clone)]
@@ -58,8 +68,20 @@ impl Vcs {
 }
 
 fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
-    let cfg_path = path.clone().unwrap_or_else(|| "./wgpu_update.toml".into());
-    let mut config_file = File::open(cfg_path)?;
+    let in_current_dir = PathBuf::from("./.moz-wgpu.toml");
+    let in_home = dirs::home_dir().map(|mut path| { path.push(".moz-wgpu.toml"); path });
+
+    let mut config_file = if let Some(path) = path {
+        File::open(path)?
+    } else if let Ok(file) = File::open(&in_current_dir) {
+        file
+    } else if let Some(in_home) = in_home {
+        File::open(&in_home).ok().unwrap_or_else(|| {
+            panic!("Could not find config file. Seached locations \n{in_current_dir:?}\n{in_home:?}");
+        })
+    } else {
+        panic!();
+    };
 
     let mut buf = String::new();
     config_file.read_to_string(&mut buf)?;
