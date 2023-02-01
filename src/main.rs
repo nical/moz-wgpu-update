@@ -15,9 +15,10 @@ const COMMIT_UPADTE: Option<usize> = Some(0);
 const COMMIT_AUDIT: Option<usize> = Some(1);
 const COMMIT_VENDOR: Option<usize> = Some(2);
 
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+pub struct UpdateArgs {
     /// The new wgpu revision (git hash) to update to.
     #[arg(short, long)]
     wgpu_rev: String,
@@ -41,6 +42,25 @@ struct Args {
     /// Skip the optional steps that ensure mozilla-central is in an expected state.
     #[arg(long)]
     skip_preamble: bool
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub struct BugzillaArgs {
+    message: Option<String>,
+
+    /// Open the bugzilla url in firefox.
+    #[arg(short, long)]
+    open: bool
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub enum Args {
+    /// Update wgpu in mozilla-central.
+    Update(UpdateArgs),
+    /// File a bug for the update.
+    Bugzilla(BugzillaArgs),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -104,7 +124,42 @@ impl Version {
 }
 
 fn main() -> io::Result<()> {
-    let params = get_parameters()?;
+    let cmd = Args::parse();
+
+    match &cmd {
+        Args::Update(args) => update_command(args),
+        Args::Bugzilla(args) => file_bug(args),
+    }
+}
+
+fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
+    let mut url = "https://bugzilla.mozilla.org/enter_bug.cgi?".to_string();
+    url.push_str("&assigned_to=nobody%40mozilla.org");
+    url.push_str("&product=Core");
+    url.push_str("&component=Graphics%3A%20WebGPU");
+    url.push_str("&priority=P3");
+    url.push_str("&bug_severity=S3");
+    url.push_str("&bug_type=task");
+    url.push_str("&bug_status=NEW");
+    if let Some(message) = &args.message {
+        url.push_str("&short_desc=");
+        for word in message.split(' ') {
+            url.push_str(word);
+            url.push_str("%20")
+        }
+    }
+
+    println!("{url}");
+
+    if args.open {
+        shell(&".".into(), "firefox", &[&url]);
+    }
+
+    Ok(())
+}
+
+fn update_command(args: &UpdateArgs) -> io::Result<()> {
+    let params = get_parameters(args)?;
 
     if params.preamble {
         preamble(&params)?;
@@ -132,9 +187,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn get_parameters() -> io::Result<Parameters> {
-    let args = Args::parse();
-
+fn get_parameters(args: &UpdateArgs) -> io::Result<Parameters> {
     let cfg_path = args.config.clone().unwrap_or_else(|| "./wgpu_update.toml".into());
     let mut config_file = File::open(cfg_path)?;
 
@@ -142,7 +195,7 @@ fn get_parameters() -> io::Result<Parameters> {
     config_file.read_to_string(&mut buf)?;
     let config: Config = toml::from_str(&buf).unwrap();
 
-    let phab_revisions = args.phab_revisions.map(|s| {
+    let phab_revisions = args.phab_revisions.as_ref().map(|s| {
         let mut revs = s.split(',');
         [
             revs.next().unwrap().to_string(),
@@ -152,8 +205,8 @@ fn get_parameters() -> io::Result<Parameters> {
     });
 
     Ok(Parameters {
-        wgpu_rev: args.wgpu_rev,
-        bug: args.bug,
+        wgpu_rev: args.wgpu_rev.clone(),
+        bug: args.bug.clone(),
         dir: config.directories,
         vcs: config.vcs.unwrap_or_else(|| "hg".into()),
         phab_revisions,

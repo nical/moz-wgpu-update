@@ -16,7 +16,7 @@ mozilla_central = "/home/nical/dev/mozilla/mozilla-unified"
 Then run the script, for example:
 
 ```bash
-cargo run -- --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+cargo run -- update --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
 ```
 
 `cargo vet` will prompt you to acknowledge that you have properly vetted the changes for each new crate version along the way.
@@ -34,7 +34,7 @@ If so, you may want to pass `--skip-pramble` on subsequent runs. The preamble co
 If you have already submitted the commits to phabricator and want to re-generate them, you'll want to make sure the new commits update the corresponding phabricator revisions. It is tedious to manually edit each commit message to add the revision marker every time they are re-generated. The script can do that for you if you pass a comma separated list of the three phabricator revision ids in their order of creation using `--phab_revisions`, for example:
 
 ```bash
-cargo run -- --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
+cargo run -- update --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
 ```
 
 # The Full auditting and update process
@@ -109,7 +109,17 @@ $ hg checkout central # if you want to apply on top of a fesh revision of centra
 
 ## File a bug for the update
 
-Got to bugzilla, file a bug, write down the bug number (in our example, it's going to be `1813547`).
+Go to bugzilla, file a bug, write down the bug number (in our example, it's going to be `1813547`).
+
+This tool can make that a bit easier with the following command:
+
+```bash
+cargo run -- bugzilla "wgpu update (Early February 2023)"
+```
+
+The command above produces an url with pre-filled bugzilla entries.
+
+Adding `--open` directly opens the url with firefox.
 
 ## Run this tool
 
@@ -117,7 +127,7 @@ Copy the hash that was printed to stdout at the end of the previous step with ji
 
 ```bash
 $ cd path/to/this/repository
-$ cargo run -- --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+$ cargo run -- update --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
 ```
 
 The bug number if optional. If absent, it just won't be in the commit messages.
