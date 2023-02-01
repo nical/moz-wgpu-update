@@ -1,10 +1,11 @@
 use std::io::{self, BufRead};
 use std::fs::File;
-use crate::{Config, Version};
+use std::path::Path;
+use crate::Version;
 
 // Try to extract the wgpu semver version and commit hash from mozilla-central's Cargo.lock.
-pub fn find_version(name: &str, config: &Config) -> io::Result<Version> {
-    let mut cargo_lock_path = config.directories.mozilla_central.clone();
+pub fn find_version(name: &str, gecko_path: &Path) -> io::Result<Version> {
+    let mut cargo_lock_path = gecko_path.to_path_buf();
     cargo_lock_path.push("Cargo.lock");
 
     let mut found_package = false;

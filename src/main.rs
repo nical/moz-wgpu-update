@@ -10,16 +10,17 @@ use std::process::Command;
 use clap::Parser;
 use serde_derive::{Serialize, Deserialize};
 
+// The order of the 3 gecko commits.
+const COMMIT_UPADTE: Option<usize> = Some(0);
+const COMMIT_AUDIT: Option<usize> = Some(1);
+const COMMIT_VENDOR: Option<usize> = Some(2);
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-pub struct Args {
+struct Args {
     /// The new wgpu revision (git hash) to update to.
     #[arg(short, long)]
     wgpu_rev: String,
-
-    /// The previous wgpu revision (git hash) (if not specified, it is detected automatically from mozilla-central's Cargo.lock)
-    #[arg(short, long)]
-    previous_wgpu_rev: Option<String>,
 
     /// The bug number.
     #[arg(short, long)]
@@ -32,6 +33,14 @@ pub struct Args {
     /// Whether to run start a build at the end.
     #[arg(long)]
     build: bool,
+
+    /// Comma separated string of the 3 phabricator revisions (to re-generated already submitted patches).
+    #[arg(long)]
+    phab_revisions: Option<String>,
+
+    /// Skip the optional steps that ensure mozilla-central is in an expected state.
+    #[arg(long)]
+    skip_preamble: bool
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -42,7 +51,7 @@ pub struct Directories {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Config {
+struct Config {
     pub directories: Directories,
     pub vcs: Option<String>,
 }
@@ -64,6 +73,18 @@ impl Delta {
     }
 }
 
+// For convenience, merge Config and Args into a single Param
+// struct with default values applied.
+pub struct Parameters {
+    wgpu_rev: String,
+    bug: Option<String>,
+    dir: Directories,
+    vcs: String,
+    phab_revisions: Option<[String; 3]>,
+    preamble: bool,
+    build: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct Version {
     pub semver: String,
@@ -71,6 +92,8 @@ pub struct Version {
 }
 
 impl Version {
+    /// The semver/git hash pair formatted in the way cargo vet expects, or just the
+    /// semver string if there is no git hash.
     pub fn to_string(&self) -> String {
         if self.git_hash.is_empty() {
             return self.semver.clone()
@@ -81,36 +104,24 @@ impl Version {
 }
 
 fn main() -> io::Result<()> {
-    let args = Args::parse();
+    let params = get_parameters()?;
 
-    let cfg_path = args.config.clone().unwrap_or_else(|| "./wgpu_update.toml".into());
-    let mut config_file = File::open(cfg_path)?;
+    if params.preamble {
+        preamble(&params)?;
+    }
 
-    let mut buf = String::new();
-    config_file.read_to_string(&mut buf)?;
-    let config: Config = toml::from_str(&buf).unwrap();
+    let deltas = update_wgpu(&params)?;
 
-    let mut deltas = [
-        Delta::new("wgpu-core"),
-        Delta::new("wgpu-hal"),
-        Delta::new("wgpu-types"),
-        Delta::new("naga"),
-        Delta::new("d3d12"),
-        Delta::new("ash"),
-    ];
+    vet_changes(&params, &deltas)?;
 
-    update_wgpu(&config, &args, &mut deltas)?;
+    vendor_wgpu_update(&params)?;
 
-    vet_changes(&config, &args, &deltas)?;
-
-    vendor_wgpu_update(&config, &args)?;
-
-    if args.build {
-        build(&config);
+    if params.build {
+        build(&params);
     }
 
     println!("\n\nAll done!");
-    if !args.build {
+    if !params.build {
         println!("Now is a good time to do a build in case there were breaking changes in wgpu-core's API.");
     }
 
@@ -121,10 +132,53 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn update_wgpu(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result<()> {
+fn get_parameters() -> io::Result<Parameters> {
+    let args = Args::parse();
 
-    let gecko_path = &config.directories.mozilla_central;
-    let wgpu_rev = &args.wgpu_rev;
+    let cfg_path = args.config.clone().unwrap_or_else(|| "./wgpu_update.toml".into());
+    let mut config_file = File::open(cfg_path)?;
+
+    let mut buf = String::new();
+    config_file.read_to_string(&mut buf)?;
+    let config: Config = toml::from_str(&buf).unwrap();
+
+    let phab_revisions = args.phab_revisions.map(|s| {
+        let mut revs = s.split(',');
+        [
+            revs.next().unwrap().to_string(),
+            revs.next().unwrap().to_string(),
+            revs.next().unwrap().to_string(),
+        ]
+    });
+
+    Ok(Parameters {
+        wgpu_rev: args.wgpu_rev,
+        bug: args.bug,
+        dir: config.directories,
+        vcs: config.vcs.unwrap_or_else(|| "hg".into()),
+        phab_revisions,
+        build: args.build,
+        preamble: !args.skip_preamble,
+    })
+}
+
+/// Do a few things to make sure we start in a good state.
+fn preamble(params: &Parameters) -> io::Result<()> {
+    let gecko_path = &params.dir.mozilla_central;
+
+    shell(gecko_path, "hg", &["diff"]);
+    commit(params, "(Don't land) Uncommited changes before the wgpu update.", None);
+
+    shell(gecko_path, "./mach", &["vendor", "rust"]);
+    commit(params, "(Don't land) Stray unvendored 3rd parties before the wgpu update.", None);
+
+    Ok(())
+}
+
+fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
+
+    let gecko_path = &params.dir.mozilla_central;
+    let wgpu_rev = &params.wgpu_rev;
 
     let mut bindings_path = gecko_path.clone();
     bindings_path.push("gfx/wgpu_bindings/");
@@ -135,6 +189,20 @@ fn update_wgpu(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result
     tmp_cargo_toml_path.push("tmp.Cargo.toml");
 
     let wgpu_url = "https://github.com/gfx-rs/wgpu";
+
+    let mut deltas = vec![
+        Delta::new("wgpu-core"),
+        Delta::new("wgpu-hal"),
+        Delta::new("wgpu-types"),
+        Delta::new("naga"),
+        Delta::new("d3d12"),
+        Delta::new("ash"),
+    ];
+
+    println!("Parsing previous crate versions from Cargo.lock");
+    for delta in &mut deltas[..] {
+        delta.prev = cargo_lock::find_version(&delta.name, &params.dir.mozilla_central)?;
+    }
 
     println!("Parsing {cargo_toml_path:?}");
     cargo_toml::update_cargo_toml(
@@ -159,61 +227,37 @@ fn update_wgpu(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result
     std::fs::rename(&tmp_cargo_toml_path, &cargo_toml_path)?;
     std::fs::rename(&tmp_moz_yaml_path, &moz_yaml_path)?;
 
-    refresh_cargo_toml_and_update_deltas(config, args, deltas)?;
-
-    let mut commit_msg = String::new();
-    if let Some(bug) = &args.bug {
-        commit_msg.push_str(&format!("Bug {bug} - "));
-    }
-    commit_msg.push_str(&format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"));
-
-    commit(config, &commit_msg);
-
-    Ok(())
-}
-
-fn refresh_cargo_toml_and_update_deltas(config: &Config, args: &Args, deltas: &mut [Delta]) -> io::Result<()> {
-    let gecko_path = &config.directories.mozilla_central;
-
-    println!("Parse previous crate versions from Cargo.lock");
-    for delta in &mut deltas[..] {
-        delta.prev = cargo_lock::find_version(&delta.name, config)?;
-    }
-
     println!("Refresh Cargo.lock");
     // Run a cargo command that will cause it to pick up the new version of the crates that we
-    // updated in wgpu_bindings/Cagro.toml (and their depdendencies) without trying to update
-    // unrelated crates. There may be other ways but this one appears to do what we want.
-    shell(gecko_path, "cargo", &["update", "--package", "wgpu-core", "--precise", &args.wgpu_rev]);
+    // updated in wgpu_bindings/Cagro.toml (and their depdendencies) and write them in Cargo.lock
+    // without trying to update unrelated crates. There may be other ways but this one appears to
+    // do what we want.
+    shell(gecko_path, "cargo", &["update", "--package", "wgpu-core", "--precise", &params.wgpu_rev]);
 
-    println!("Parse new crate versions from Cargo.lock");
+    commit(params, &format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"), COMMIT_UPADTE);
+
+    println!("Parsing new crate versions from Cargo.lock");
     // Parse Cargo.lock again to get the new version of the crates we are interested in (including
     // the new versions of things we didn´t specify but wgpu depends on).
     for delta in &mut deltas[..] {
-        delta.next = cargo_lock::find_version(&delta.name, config)?;
+        delta.next = cargo_lock::find_version(&delta.name, &params.dir.mozilla_central)?;
     }
 
-    Ok(())
+    Ok(deltas)
 }
 
-fn vendor_wgpu_update(config: &Config, args: &Args) -> io::Result<()> {
-    let gecko_path = &config.directories.mozilla_central;
+fn vendor_wgpu_update(params: &Parameters) -> io::Result<()> {
+    let gecko_path = &params.dir.mozilla_central;
 
     shell(gecko_path, "./mach", &["vendor", "rust"]);
 
-    let mut commit_msg = String::new();
-    if let Some(bug) = &args.bug {
-        commit_msg.push_str(&format!("Bug {bug} - "));
-    }
-    commit_msg.push_str("Vendor wgpu changes. r=#webgpu-reviewers");
-    
-    commit(config, &commit_msg);
+    commit(params, "Vendor wgpu changes. r=#webgpu-reviewers", COMMIT_VENDOR);
 
     Ok(())
 }
 
-fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()> {
-    let gecko_path = &config.directories.mozilla_central;
+fn vet_changes(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
+    let gecko_path = &params.dir.mozilla_central;
 
     for delta in deltas {
         let crate_name = &delta.name;
@@ -227,13 +271,7 @@ fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()>
         shell(gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &prev, &next, "--criteria", "safe-to-deploy"]);
     }
 
-    let mut commit_msg = String::new();
-    if let Some(bug) = &args.bug {
-        commit_msg.push_str(&format!("Bug {bug} - "));
-    }
-    commit_msg.push_str("Vet wgpu and naga commits. r=#supply-chain-reviewers");
-
-    commit(config, &commit_msg);
+    commit(params, "Vet wgpu and naga commits. r=#supply-chain-reviewers", COMMIT_AUDIT);
 
     // Run cargo vet to see if there are any other new crate versions that were imported
     // besides wgpu ones (typically naga, d3d12).
@@ -243,8 +281,8 @@ fn vet_changes(config: &Config, args: &Args, deltas: &[Delta]) -> io::Result<()>
     Ok(())
 }
 
-fn build(config: &Config) {
-    shell(&config.directories.mozilla_central, "./mach", &["build"]);
+fn build(params: &Parameters) {
+    shell(&params.dir.mozilla_central, "./mach", &["build"]);
 }
 
 fn shell(directory: &PathBuf, cmd: &str, args: &[&str]) {
@@ -264,11 +302,21 @@ fn shell(directory: &PathBuf, cmd: &str, args: &[&str]) {
         .unwrap();
 }
 
-fn commit(config: &Config, commit_msg: &str) {
-    let mc = &config.directories.mozilla_central;
-    if config.vcs == Some("git".into()) {
-        shell(mc, "git", &["commit", "-am", commit_msg]);
-    } else {
-        shell(mc, "hg", &["commit", "-m", commit_msg]);
+fn commit(params: &Parameters, msg: &str, commit_idx: Option<usize>) {
+    let mut commit_msg = String::new();
+    if let Some(bug) = &params.bug {
+        commit_msg.push_str(&format!("Bug {bug} - "));
+    }
+    commit_msg.push_str(msg);
+
+    if let (Some(revs), Some(idx)) = (&params.phab_revisions, commit_idx) {
+        commit_msg.push_str(&format!("\n\nDifferential Revision: https://phabricator.services.mozilla.com/{}", revs[idx]));
+    }
+
+    let mc = &params.dir.mozilla_central;
+    match &params.vcs[..] {
+        "hg" | "mercurial" => { shell(mc, "hg", &["commit", "-m", &commit_msg]); }
+        "git" => { shell(mc, "git", &["commit", "-am", &commit_msg]); }
+        _ => { panic!("Unknown vcs {:?}", params.vcs); }
     }
 }
