@@ -3,20 +3,22 @@
 mod cargo_toml;
 mod moz_yaml;
 mod cargo_lock;
-mod update;
+mod wgpu_update;
+mod naga_update;
 mod helpers;
 
-use std::{path::PathBuf, fs::File, io::{self, Read}};
+use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}};
 use std::process::Command;
 use clap::Parser;
 use serde_derive::{Serialize, Deserialize};
-use update::{UpdateArgs};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub enum Args {
     /// Update wgpu in mozilla-central.
-    Update(UpdateArgs),
+    WgpuUpdate(wgpu_update::Args),
+    /// Update naga in wgpu.
+    NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
     /// Run a mach command in the mozilla-central directory.
@@ -30,8 +32,8 @@ pub enum Args {
 #[derive(Serialize, Deserialize, Debug)]
 struct Config {
     gecko: Gecko,
-    wgpu: Option<Wgpu>,
-    naga: Option<Naga>,
+    wgpu: Wgpu,
+    naga: Naga,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,11 +45,15 @@ pub struct Gecko {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Wgpu {
     path: PathBuf,
+    #[serde(alias = "upstream-remote")]
+    updatream_remote: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Naga {
     path: PathBuf,
+    #[serde(alias = "upstream-remote")]
+    updatream_remote: Option<String>,
 }
 
 #[derive(Copy, Clone)]
@@ -64,6 +70,24 @@ impl Vcs {
             "git" => Vcs::Git,
             _ => panic!("Unsupported version control system {vcs_str:?}")
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Version {
+    pub semver: String,
+    pub git_hash: String,
+}
+
+impl Version {
+    /// The semver/git hash pair formatted in the way cargo vet expects, or just the
+    /// semver string if there is no git hash.
+    pub fn to_string(&self) -> String {
+        if self.git_hash.is_empty() {
+            return self.semver.clone()
+        }
+
+        format!("{}@git:{}", self.semver, self.git_hash)
     }
 }
 
@@ -90,13 +114,13 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
     Ok(config)
 }
 
-fn shell(directory: &PathBuf, cmd: &str, args: &[&str]) {
+fn shell(directory: &Path, cmd: &str, args: &[&str]) {
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
         cmd_str.push(' ');
     }
-    println!("Running {cmd_str:?}");
+    println!(" -- Running {cmd_str:?}");
 
     Command::new(cmd)
         .args(args)
@@ -107,9 +131,62 @@ fn shell(directory: &PathBuf, cmd: &str, args: &[&str]) {
         .unwrap();
 }
 
+fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> String {
+    let mut cmd_str = format!("{cmd} ");
+    for arg in args {
+        cmd_str.push_str(arg);
+        cmd_str.push(' ');
+    }
+    println!(" -- Running {cmd_str:?}");
+
+    let bytes = Command::new(cmd)
+        .args(args)
+        .current_dir(directory)
+        .output()
+        .unwrap()
+        .stdout;
+
+    String::from_utf8(bytes).unwrap()
+}
+
+pub fn concat_path(a: &Path, b: &str) -> PathBuf {
+    let mut path = a.to_path_buf();
+    if !b.is_empty() {
+        path.push(&PathBuf::from(b));
+    }
+
+    path
+}
+
+fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::Result<Version> {
+    println!("Detecting naga version from local checkout.");
+    let current_branch = read_shell(path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    if pull {
+        // Temporarily switch to the master branch.
+        shell(path, "git", &["commit", "-am", "Uncommitted changes before update."]);
+        shell(path, "git", &["checkout", "master"]);
+        shell(path, "git", &["pull", &upstream, "master"]);
+    }
+
+    let git_hash = read_shell(path, "git", &["rev-parse", &format!("{upstream}/master")]).trim().to_string();
+
+    let cargo_toml_path = concat_path(path, "Cargo.toml");
+    let reader = io::BufReader::new(File::open(&cargo_toml_path)?);
+    let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
+
+    if pull {
+        // Switch back to the previous branch.
+        shell(path, "git", &["checkout", &current_branch]);
+    }
+
+    Ok(Version { semver, git_hash })
+}
+
 fn main() -> io::Result<()> {
     match &Args::parse() {
-        Args::Update(args) => update::update_command(args),
+        Args::WgpuUpdate(args) => wgpu_update::update_command(args),
+        Args::NagaUpdate(args) => naga_update::update_command(args),
         Args::Bugzilla(args) => helpers::file_bug(args),
         Args::Mach(args) => helpers::run_mach_command(args),
         Args::Try => helpers::push_to_try(),

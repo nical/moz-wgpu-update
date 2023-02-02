@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, path::PathBuf};
 use clap::Parser;
 
 use crate::{Vcs, read_config_file, shell};
@@ -50,7 +50,7 @@ pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
     println!("{url}");
 
     if args.open {
-        shell(&".".into(), "firefox", &[&url]);
+        shell(&PathBuf::from("."), "firefox", &[&url]);
     }
 
     Ok(())

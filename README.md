@@ -4,27 +4,54 @@ Scripts to automate the process of updating wgpu in mozilla-central.
 
 # Example usage
 
-Create a `.moz-wgpu.toml` file with information about where the various repositories are on disk, for example:
+## Setup
+
+You will need a `.moz-wgpu.toml` file with information about where the various repositories are on disk, for example:
 
 ```toml
 [gecko]
-path = "/Users/nical/dev/mozilla/unified"
+path = "/home/nical/dev/mozilla/unified"
 vcs = "hg"
 
 [wgpu]
-path = "/Users/nical/dev/rust/wgpu"
+path = "/home/nical/dev/rust/wgpu"
+upstream-remote = "upstream"
 
 [naga]
-path = "/Users/nical/dev/rust/naga"
+path = "/home/nical/dev/rust/naga"
+upstream-remote = "upstream"
 ```
 
-The script will look for it in the current folder, then in the home folder. It can also be passed manually to the `update` command using `--config path/to/config/file`.
+`upstream-remote` is the name of the remote git will pull from (for example `upstream` in the command `git pull upstream master`) to get the latest changes. If not specified, the default is "upstream".
 
-Then run the script, for example:
+The script will look for the configuration file in the current folder, then in the home folder.
+
+You can install the script like any rust binary:
 
 ```bash
-cargo run -- update --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+$ cargo install --path path/to/this/repository/
 ```
+
+In which case, in all of the examples below, replace the beginning of the command `cargo run -- ` with `moz-wgpu `.
+
+Or just run it form this reporsitory's root folder.
+
+## Updateing wgpu in mozilla-central
+
+```bash
+# Update the wgpu dependencies in mozilla-central to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a
+cargo run -- wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+```
+
+or
+
+```bash
+# Similar, except that the script will detect the latest wgpu revision from your local checkout's master
+# branch. Beware! This will pull changes in wgpu's master branch.
+cargo run -- wgpu-update --auto --bug 1813547
+```
+
+Specifying the bug number is optional.
 
 `cargo vet` will prompt you to acknowledge that you have properly vetted the changes for each new crate version along the way.
 
@@ -41,8 +68,18 @@ If so, you may want to pass `--skip-pramble` on subsequent runs. The preamble co
 If you have already submitted the commits to phabricator and want to re-generate them, you'll want to make sure the new commits update the corresponding phabricator revisions. It is tedious to manually edit each commit message to add the revision marker every time they are re-generated. The script can do that for you if you pass a comma separated list of the three phabricator revision ids in their order of creation using `--phab_revisions`, for example:
 
 ```bash
-cargo run -- update --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
+cargo run -- wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
 ```
+
+## Updating naga in wgpu
+
+```bash
+cargo run -- naga-update --auto --branch "naga-up" --test
+```
+
+`--auto` will automatically deptect the changes from your local naga checkout's master branch. Note that it will pull changes into your master branch. you can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
+
+`--branch` lets you specify the branch to write the update into (defaults to "naga-update"). Note that the branch will be re-created each time the command is run.
 
 # The Full auditting and update process
 
@@ -134,7 +171,7 @@ Copy the hash that was printed to stdout at the end of the previous step with ji
 
 ```bash
 $ cd path/to/this/repository
-$ cargo run -- update --wgpu-rev 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+$ cargo run -- wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
 ```
 
 The bug number if optional. If absent, it just won't be in the commit messages.
