@@ -1,4 +1,4 @@
-use std::{path::{Path, PathBuf}, fs::File, io::{self, BufWriter}};
+use std::{path::PathBuf, fs::File, io::{self, BufWriter}};
 use clap::Parser;
 use crate::{read_config_file, cargo_toml, shell, read_shell, concat_path, Version, crate_version_from_checkout};
 
@@ -55,24 +55,24 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     // Commit any potential uncommitted changes before doing the update.
     // Run cargo check to make sure the lock file is up to date.
-    shell(&config.wgpu.path, "cargo", &["check"]);
-    shell(&config.wgpu.path, "git", &["commit", "-am", "Uncommitted changes before naga update."]);
+    shell(&config.wgpu.path, "cargo", &["check"])?;
+    shell(&config.wgpu.path, "git", &["commit", "-am", "Uncommitted changes before naga update."])?;
 
     // If we are already in the destination branch, switch to master so that we
     // can re-create it.
     let current_branch = read_shell(&config.wgpu.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]);
     if args.on_master {
-        shell(&config.wgpu.path, "git", &["checkout", "master"]);
-        shell(&config.wgpu.path, "git", &["pull", &wgpu_upstream, "master"]);
+        shell(&config.wgpu.path, "git", &["checkout", "master"])?;
+        shell(&config.wgpu.path, "git", &["pull", &wgpu_upstream, "master"])?;
     }
     if current_branch.trim() == branch_name {
         println!("Temporarily swicthing to master");
-        shell(&config.wgpu.path, "git", &["checkout", "master"]);
+        shell(&config.wgpu.path, "git", &["checkout", "master"])?;
     }
 
     // Delete, recreate the branch and switch to it
-    shell(&config.wgpu.path, "git", &["branch", "-D", &branch_name]);
-    shell(&config.wgpu.path, "git", &["checkout", "-b", &branch_name]);
+    shell(&config.wgpu.path, "git", &["branch", "-D", &branch_name])?;
+    shell(&config.wgpu.path, "git", &["checkout", "-b", &branch_name])?;
 
     let folders = &["", "wgpu-core/", "wgpu-hal/", "wgpu-types/"];
 
@@ -100,15 +100,15 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         std::fs::rename(&tmp_cargo_toml_path, &cargo_toml_path)?;
     }
 
-    shell(&config.wgpu.path, "cargo", &["check"]);
+    shell(&config.wgpu.path, "cargo", &["check"])?;
 
-    shell(&config.wgpu.path, "git", &["diff"]);
+    shell(&config.wgpu.path, "git", &["diff"])?;
 
     let commit_msg = format!("Update naga to {}", version.to_string());
-    shell(&config.wgpu.path, "git", &["commit", "-am", &commit_msg]);
+    shell(&config.wgpu.path, "git", &["commit", "-am", &commit_msg])?;
 
     if args.test {
-        shell(&config.wgpu.path, "cargo", &["nextest", "run"]);
+        shell(&config.wgpu.path, "cargo", &["nextest", "run"])?;
     }
 
     Ok(())

@@ -7,7 +7,7 @@ mod wgpu_update;
 mod naga_update;
 mod helpers;
 
-use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}};
+use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}, process::ExitStatus};
 use std::process::Command;
 use clap::Parser;
 use serde_derive::{Serialize, Deserialize};
@@ -114,7 +114,7 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
     Ok(config)
 }
 
-fn shell(directory: &Path, cmd: &str, args: &[&str]) {
+fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
@@ -122,15 +122,13 @@ fn shell(directory: &Path, cmd: &str, args: &[&str]) {
     }
     println!(" -- Running {cmd_str:?}");
 
-    Command::new(cmd)
-        .args(args)
-        .current_dir(directory)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
+    Command::new(cmd).args(args).current_dir(directory).status()
 }
 
+/// Execute a command and read stdout into a string.
+///
+/// Note that the resulting string will likely have a \n at the end, even
+/// if only one line was written.
 fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> String {
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
@@ -159,14 +157,15 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
 }
 
 fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::Result<Version> {
-    println!("Detecting naga version from local checkout.");
+    println!("Detecting crate version from local checkout.");
     let current_branch = read_shell(path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let current_branch = current_branch.trim();
 
     if pull {
         // Temporarily switch to the master branch.
-        shell(path, "git", &["commit", "-am", "Uncommitted changes before update."]);
-        shell(path, "git", &["checkout", "master"]);
-        shell(path, "git", &["pull", &upstream, "master"]);
+        shell(path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
+        shell(path, "git", &["checkout", "master"])?;
+        shell(path, "git", &["pull", &upstream, "master"])?;
     }
 
     let git_hash = read_shell(path, "git", &["rev-parse", &format!("{upstream}/master")]).trim().to_string();
@@ -177,7 +176,7 @@ fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::R
 
     if pull {
         // Switch back to the previous branch.
-        shell(path, "git", &["checkout", &current_branch]);
+        shell(path, "git", &["checkout", current_branch])?;
     }
 
     Ok(Version { semver, git_hash })
