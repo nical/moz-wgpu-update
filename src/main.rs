@@ -6,6 +6,7 @@ mod cargo_lock;
 mod wgpu_update;
 mod naga_update;
 mod helpers;
+mod audit;
 
 use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}, process::ExitStatus};
 use std::process::Command;
@@ -21,6 +22,8 @@ pub enum Args {
     NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
+    /// List commits to audit.
+    Audit(audit::AuditArgs),
     /// Run a mach command in the mozilla-central directory.
     Mach(helpers::MachArgs),
     /// Run `hg histedit` in mozilla-central.
@@ -47,6 +50,8 @@ pub struct Wgpu {
     path: PathBuf,
     #[serde(alias = "upstream-remote")]
     updatream_remote: Option<String>,
+    #[serde(default, alias = "trusted-reviewers")]
+    trusted_reviewers: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,6 +59,8 @@ pub struct Naga {
     path: PathBuf,
     #[serde(alias = "upstream-remote")]
     updatream_remote: Option<String>,
+    #[serde(default, alias = "trusted-reviewers")]
+    trusted_reviewers: Vec<String>,
 }
 
 #[derive(Copy, Clone)]
@@ -187,6 +194,7 @@ fn main() -> io::Result<()> {
         Args::WgpuUpdate(args) => wgpu_update::update_command(args),
         Args::NagaUpdate(args) => naga_update::update_command(args),
         Args::Bugzilla(args) => helpers::file_bug(args),
+        Args::Audit(args) => audit::pull_commits_to_audit(args),
         Args::Mach(args) => helpers::run_mach_command(args),
         Args::Try => helpers::push_to_try(),
         Args::Histedit => helpers::hg_histedit(),
