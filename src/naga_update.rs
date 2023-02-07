@@ -3,7 +3,6 @@ use clap::Parser;
 use crate::{read_config_file, cargo_toml, shell, read_shell, concat_path, Version, crate_version_from_checkout};
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
 pub struct Args {
     /// The new naga revision (git hash) to update to.
     #[arg(short, long)]

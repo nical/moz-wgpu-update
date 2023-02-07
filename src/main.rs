@@ -6,6 +6,7 @@ mod cargo_lock;
 mod wgpu_update;
 mod naga_update;
 mod helpers;
+mod audit;
 
 use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}, process::ExitStatus};
 use std::process::Command;
@@ -21,6 +22,8 @@ pub enum Args {
     NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
+    /// List commits to audit.
+    Audit(audit::AuditArgs),
     /// Run a mach command in the mozilla-central directory.
     Mach(helpers::MachArgs),
     /// Run `hg histedit` in mozilla-central.
@@ -30,10 +33,12 @@ pub enum Args {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
 struct Config {
     gecko: Gecko,
-    wgpu: Wgpu,
-    naga: Naga,
+    wgpu: GithubProject,
+    naga: GithubProject,
+    github_api_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,17 +48,12 @@ pub struct Gecko {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Wgpu {
+#[serde(rename_all = "kebab-case")]
+pub struct GithubProject {
     path: PathBuf,
-    #[serde(alias = "upstream-remote")]
     updatream_remote: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Naga {
-    path: PathBuf,
-    #[serde(alias = "upstream-remote")]
-    updatream_remote: Option<String>,
+    trusted_reviewers: Vec<String>,
+    latest_commit: Option<PathBuf>,
 }
 
 #[derive(Copy, Clone)]
@@ -187,6 +187,7 @@ fn main() -> io::Result<()> {
         Args::WgpuUpdate(args) => wgpu_update::update_command(args),
         Args::NagaUpdate(args) => naga_update::update_command(args),
         Args::Bugzilla(args) => helpers::file_bug(args),
+        Args::Audit(args) => audit::pull_commits_to_audit(args),
         Args::Mach(args) => helpers::run_mach_command(args),
         Args::Try => helpers::push_to_try(),
         Args::Histedit => helpers::hg_histedit(),

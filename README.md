@@ -6,23 +6,30 @@ Scripts to automate the process of updating wgpu in mozilla-central.
 
 ## Setup
 
-You will need a `.moz-wgpu.toml` file with information about where the various repositories are on disk, for example:
+You will need a `.moz-wgpu.toml` file with information about where the various repositories are on disk, for example mine looks like this:
 
 ```toml
+github-api-token = "gh"
+
 [gecko]
-path = "/home/nical/dev/mozilla/unified"
-vcs = "hg"
+path = "/home/nical/dev/mozilla/mozilla-unified"
 
 [wgpu]
 path = "/home/nical/dev/rust/wgpu"
 upstream-remote = "upstream"
+trusted-reviewers = ["nical", "teoxoy", "ErichDonGubler", "jimblandy"]
+latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-wgpu-commit.txt"
 
 [naga]
 path = "/home/nical/dev/rust/naga"
 upstream-remote = "upstream"
+trusted-reviewers = ["nical", "teoxoy", "ErichDonGubler", "jimblandy"]
+latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-naga-commit.txt"
 ```
 
 `upstream-remote` is the name of the remote git will pull from (for example `upstream` in the command `git pull upstream master`) to get the latest changes. If not specified, the default is "upstream".
+
+`github-api-token` is needed by the `audit` command, it is explained later in this document.
 
 The script will look for the configuration file in the current folder, then in the home folder.
 
@@ -32,15 +39,14 @@ You can install the script like any rust binary:
 $ cargo install --path path/to/this/repository/
 ```
 
-In which case, in all of the examples below, replace the beginning of the command `cargo run -- ` with `moz-wgpu `.
+Or just run it form this reporsitory's root folder. If so, replace the beginning of the command `moz-wgpu ` with `cargo run -- ` in all of the examples in this document.
 
-Or just run it form this reporsitory's root folder.
 
 ## Updateing wgpu in mozilla-central
 
 ```bash
 # Update the wgpu dependencies in mozilla-central to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a
-cargo run -- wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+$ moz-wgpu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
 ```
 
 or
@@ -48,7 +54,7 @@ or
 ```bash
 # Similar, except that the script will detect the latest wgpu revision from your local checkout's master
 # branch. Beware! This will pull changes in wgpu's master branch.
-cargo run -- wgpu-update --auto --bug 1813547
+$ moz-wgpu wgpu-update --auto --bug 1813547
 ```
 
 Specifying the bug number is optional.
@@ -68,13 +74,13 @@ If so, you may want to pass `--skip-pramble` on subsequent runs. The preamble co
 If you have already submitted the commits to phabricator and want to re-generate them, you'll want to make sure the new commits update the corresponding phabricator revisions. It is tedious to manually edit each commit message to add the revision marker every time they are re-generated. The script can do that for you if you pass a comma separated list of the three phabricator revision ids in their order of creation using `--phab_revisions`, for example:
 
 ```bash
-cargo run -- wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
+$ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
 ```
 
 ## Updating naga in wgpu
 
 ```bash
-cargo run -- naga-update --auto --branch "naga-up" --test
+$ moz-wpgu naga-update --auto --branch "naga-up" --test
 ```
 
 `--auto` will automatically deptect the changes from your local naga checkout's master branch. Note that it will pull changes into your master branch. you can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
@@ -83,52 +89,49 @@ cargo run -- naga-update --auto --branch "naga-up" --test
 
 # The Full auditting and update process
 
-## Run Jim's scripts
+## The audit command
 
-https://github.com/jimblandy/vet-wgpu
+This tool implements a script that summarizes the commits that need to be auditted.
 
-To remove some manual steps I call them from two alsmot identical shell scripts placed in `wgpu` and `naga` folders in a clone of Jim's vet-wgpu repository
+Before running the command, you must set up a github API token so that the tool can access github's graphql API. Once you have the api token, you can add `github-api-token = "<token>"` in your config file. If you are using the `gh` command-line tool and the latter is authenticated, you can instead put `github-api-token = "gh"` in the config file and the tool will automatically request the token from `gh`.
 
-The script for wgpu is:
+Here is an example of using the script to gather information about `wgpu` commits between specific revisions and write the output into `./wgpu-commits.csv`.
 
-```bash
-cat ./repo.sh
-echo "--"
-export LAST_COMMIT=$(cat ./last-commit) &&
-echo "Starting at commit $LAST_COMMIT" &&
-cd /home/nical/dev/rust/wgpu &&
-git checkout master &&
-git pull upstream master &&
-git rev-list $LAST_COMMIT..HEAD > /home/nical/dev/mozilla/vet-wgpu/wgpu/commit-list &&
-cat /home/nical/dev/mozilla/vet-wgpu/wgpu/commit-list &&
-echo "--" &&
-cd - &&
-echo "Running fetch-commits.sh..." &&
-sh ../fetch-commits.sh &&
-echo "Running make-commit-pulls.sh..." &&
-sh ../make-commit-pulls.sh &&
-echo "Running fetch-pulls.sh..." &&
-sh ../fetch-pulls.sh &&
-echo "Running mergers-and-approvers.sh..." &&
-sh ../mergers-and-approvers.sh &&
-echo "--" &&
-cat mergers-and-approvers.tsv &&
-# the last commit appears first in commit-list
-head -n 1 ./commit-list > last-commit &&
-echo "Last commit is now $(cat ./last-commit)"
+```
+$ moz-wgpu audit wgpu --from 41de797c745d317e93b9cf50e7446faff7f65954 --to HEAD -o ./wgpu-commits.csv
 ```
 
-I'm hoping to re-write all of it in some rust code that I'll have an easier time understanding and that could be used by anyone.
+- `--to` defaults to `HEAD` so we don't actually need to pass it.
+- `-o`/`--output` is optional. If absent, the result will be printed to stdout.
+- If the the config file contains a path for the project's `latest-commit`, `--from` can omitted, and the script will use the latest commit hash written into a text file at the given path instead. The script will also update that file at the end.
 
-The steps look like this:
+So if you use this tool frequently, the command invocation will probably something like:
 
 ```bash
-$ cd path/to/vet-wgpu/wgpu
-$ ./run.sh
-<lots of stuff in stdout>
-<A csv-formatted list of PR, commits, reviewers, etc.>
-Last commit is now 98ea3500fd2cfb4b51d5454c662d8eefd940156a
+# To gather wgpu commits to audit:
+$ moz-wgpu audit wgpu
+
+# To gather naga commits to audit:
+$ moz-wgpu audit naga
 ```
+
+The output looks like this:
+
+```csv
+3435	1e27fd4afb6c9e203fa3bc096c000e3aa385de6d	Elabajaba	ErichDonGubler	nical	ErichDonGubler,nical
+3338	2562f323bb4597da814d009459344e4133bd1d2c	AdrianEddy	cwfitzgerald	cwfitzgerald	
+3401	c5e2f5a7b99f46b3d70fa6d05ff7d75de01a1235	Elabajaba	cwfitzgerald	cwfitzgerald	
+3434	7826092d866ed624d906cebf6988be43882edaf3	Elabajaba	cwfitzgerald	cwfitzgerald	
+3444	4ea31598a018cbd24b75bc10a2100b1e522fd613	cwfitzgerald		nical	nical
+3446	e36c080ef8c117278533ea43f84c90f9bed7f882	crowlKats		teoxoy	teoxoy
+3447	42b48ecb9ff6287ceef0c4203ffe672dffec4f2c	Elabajaba	cwfitzgerald	cwfitzgerald	
+3451	6399dd486608986ca65303a26928d5ba210c4855	nical		teoxoy	teoxoy
+3445	41de797c745d317e93b9cf50e7446faff7f65954	teoxoy		nical	nical
+```
+
+It is a csv formatted table using tabs as separator, with columns `pull request`, `commit`, `author`, `reviewers`, `merger`, `vetted by`.
+
+This has to be appended to the wgpu-vet shared spreadsheet.
 
 ## Audit commits
 
@@ -138,7 +141,7 @@ The spreadheet contains a "vetted by" column, any commit that does not have a na
 
 ## Repeat the previous steps for naga
 
-Run jim's scripts with naga instead of wgpu and update the second tab of the vet-wgpu spreadhseet.
+The audit command works the same way for wgpu and naga.
 
 ## Prep mozilla-central
 
@@ -158,7 +161,7 @@ Go to bugzilla, file a bug, write down the bug number (in our example, it's goin
 This tool can make that a bit easier with the following command:
 
 ```bash
-cargo run -- bugzilla "wgpu update (Early February 2023)"
+$ moz-wpgu bugzilla "wgpu update (Early February 2023)"
 ```
 
 The command above produces an url with pre-filled bugzilla entries.
@@ -171,7 +174,7 @@ Copy the hash that was printed to stdout at the end of the previous step with ji
 
 ```bash
 $ cd path/to/this/repository
-$ cargo run -- wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+$ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
 ```
 
 The bug number if optional. If absent, it just won't be in the commit messages.
