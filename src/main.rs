@@ -37,6 +37,8 @@ struct Config {
     gecko: Gecko,
     wgpu: Wgpu,
     naga: Naga,
+    #[serde(alias = "github-api-token")]
+    github_api_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
