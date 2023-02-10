@@ -52,14 +52,12 @@ $ moz-wgpu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug
 or
 
 ```bash
-# Similar, except that the script will detect the latest wgpu revision from your local checkout's master
-# branch. Beware! This will pull changes in wgpu's master branch.
+# Similar, except that `--auto` tells script to detect the latest wgpu revision from your local
+# checkout's master branch. Beware! This will pull changes in wgpu's master branch.
 $ moz-wgpu wgpu-update --auto --bug 1813547
 ```
 
 Specifying the bug number is optional.
-
-`cargo vet` will prompt you to acknowledge that you have properly vetted the changes for each new crate version along the way.
 
 This creates 3 commits:
 
@@ -197,6 +195,9 @@ $ hg wip # check that the commits are there
 If you didn't pass `--build` to the tool.
 
 ```bash
+# The mach command forwards its parameters to mach and runs it in your gecko directoty for convenience.
+$ moz-wgpu mach build
+# It is equivalent to:
 $ cd /path/to/mozilla-central
 $ ./mach build
 ```
