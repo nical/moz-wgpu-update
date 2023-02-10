@@ -165,13 +165,13 @@ fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::R
         // Temporarily switch to the master branch.
         shell(path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
         shell(path, "git", &["checkout", "master"])?;
-        shell(path, "git", &["pull", &upstream, "master"])?;
+        shell(path, "git", &["pull", upstream, "master"])?;
     }
 
     let git_hash = read_shell(path, "git", &["rev-parse", &format!("{upstream}/master")]).trim().to_string();
 
     let cargo_toml_path = concat_path(path, "Cargo.toml");
-    let reader = io::BufReader::new(File::open(&cargo_toml_path)?);
+    let reader = io::BufReader::new(File::open(cargo_toml_path)?);
     let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
 
     if pull {

@@ -124,7 +124,7 @@ pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     for commit_hash in rev_list.iter().rev() {
         println!("{commit_hash}");
 
-        for pull in pull_requests_for_commit(&github, &commit_hash) {
+        for pull in pull_requests_for_commit(&github, commit_hash) {
             let author = pull.user.clone().map(|user| user.login).unwrap_or_default();
             let index = pull.number;
 
@@ -138,12 +138,12 @@ pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
             };
 
             for reviewer in &commit.reviewers {
-                if project.trusted_reviewers.contains(&reviewer) {
+                if project.trusted_reviewers.contains(reviewer) {
                     commit.vetted_by.push(reviewer.clone());
                 }
             }
             if let Some(merger) = &commit.merger {
-                if project.trusted_reviewers.contains(&merger) {
+                if project.trusted_reviewers.contains(merger) {
                     commit.vetted_by.push(merger.clone());
                 }    
             }
@@ -169,14 +169,12 @@ fn pull_requests_for_commit(github: &Github, commit: &str) -> Vec<PullRequest> {
         github.api.repos("gfx-rs", &github.project).list_pulls(commit.to_string()).send()
     );
 
-    let pulls = request.map(|pulls| {
+    request.map(|pulls| {
         pulls.items
             .into_iter()
             .filter(|pull| pull.state == Some(IssueState::Closed))
             .collect()
-    }).unwrap_or_default();
-
-    pulls
+    }).unwrap_or_default()
 }
 
 fn reviewers_for_pull_request(github: &Github, pr: u64) -> Vec<String> {
