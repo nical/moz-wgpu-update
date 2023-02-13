@@ -20,6 +20,7 @@ pub struct Args {
     #[arg(short, long)]
     branch: Option<String>,
 
+    /// Checkout and pull naga's master branch before creatng the update branch.
     #[arg(long)]
     on_master: bool,
 

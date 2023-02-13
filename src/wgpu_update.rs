@@ -107,6 +107,8 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         preamble(&params)?;
     }
 
+    // TODO: Could add a --on-central argument to automatically pull and checkout central.
+
     let deltas = update_wgpu(&params)?;
 
     vet_changes(&params, &deltas)?;

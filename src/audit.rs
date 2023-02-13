@@ -2,7 +2,7 @@ use core::panic;
 use std::{io::{self, Read, BufWriter, Write}, path::{Path, PathBuf}, fs::File, sync::Arc};
 use clap::Parser;
 use octocrab::{Octocrab, models::{pulls::{ReviewState, PullRequest}, IssueState}};
-use crate::{read_shell, read_config_file};
+use crate::{shell, read_shell, read_config_file};
 
 #[derive(Parser, Debug)]
 pub struct AuditArgs {
@@ -19,7 +19,10 @@ pub struct AuditArgs {
     to: Option<String>,
     /// Optionally write the resulting csv into a file (defaults to stdout)
     #[arg(short, long)]
-    output: Option<PathBuf>
+    output: Option<PathBuf>,
+    /// Whether to pull changes and got to the master branch.
+    #[arg(long)]
+    pull: bool,
 }
 
 struct Github {
@@ -91,7 +94,7 @@ struct Commit {
     vetted_by: Vec<String>,
 }
 
-pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
+pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let config = read_config_file(&args.config)?;
 
     let project = match args.project.as_str() {
@@ -111,6 +114,13 @@ pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let end_commit = args.to.clone().unwrap_or_else(|| "HEAD".to_string());
 
     let github = Github::new(&args.project, config.github_api_token.clone())?;
+
+    if args.pull {
+        let upstream = project.updatream_remote.as_ref().map(|s| s.as_str()).unwrap_or("upstream");
+        shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before running moz-wgpu audit"])?;
+        shell(&project.path, "git", &["checkout", "master"])?;
+        shell(&project.path, "git", &["pull", upstream, "master"])?;
+    }
 
     let rev_list = git_rev_list(&project.path, &start_commit, &end_commit)?;
 

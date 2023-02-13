@@ -13,6 +13,7 @@ github-api-token = "gh"
 
 [gecko]
 path = "/home/nical/dev/mozilla/mozilla-unified"
+vcs = "hg"
 
 [wgpu]
 path = "/home/nical/dev/rust/wgpu"

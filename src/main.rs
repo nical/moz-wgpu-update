@@ -187,7 +187,7 @@ fn main() -> io::Result<()> {
         Args::WgpuUpdate(args) => wgpu_update::update_command(args),
         Args::NagaUpdate(args) => naga_update::update_command(args),
         Args::Bugzilla(args) => helpers::file_bug(args),
-        Args::Audit(args) => audit::pull_commits_to_audit(args),
+        Args::Audit(args) => audit::find_commits_to_audit(args),
         Args::Mach(args) => helpers::run_mach_command(args),
         Args::Try => helpers::push_to_try(),
         Args::Histedit => helpers::hg_histedit(),
