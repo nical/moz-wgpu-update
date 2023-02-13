@@ -1,7 +1,7 @@
 use core::panic;
 use std::{io::{self, Read, BufWriter, Write}, path::{Path, PathBuf}, fs::File, sync::Arc};
 use clap::Parser;
-use octocrab::{Octocrab, models::{pulls::{ReviewState, PullRequest}, IssueState}, auth};
+use octocrab::{Octocrab, models::{pulls::{ReviewState, PullRequest}, IssueState}};
 use crate::{read_shell, read_config_file};
 
 #[derive(Parser, Debug)]
