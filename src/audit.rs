@@ -1,7 +1,7 @@
 use core::panic;
 use std::{io::{self, Read, BufWriter, Write}, path::{Path, PathBuf}, fs::File, sync::Arc};
 use clap::Parser;
-use octocrab::{Octocrab, models::{pulls::{ReviewState, PullRequest}, IssueState}};
+use octocrab::{Octocrab, models::{pulls::{ReviewState, PullRequest}, IssueState}, auth};
 use crate::{read_shell, read_config_file};
 
 #[derive(Parser, Debug)]
@@ -120,13 +120,32 @@ pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     }
 
     let mut commits = Vec::new();
+    let mut found_at_least_one_pr = false;
 
     for commit_hash in rev_list.iter().rev() {
         println!("{commit_hash}");
 
-        for pull in pull_requests_for_commit(&github, commit_hash) {
+        let pulls = pull_requests_for_commit(&github, commit_hash);
+
+        if pulls.is_empty() {
+            println!("Found no pull request for this commit");
+            // This is less common but it can happen that commits are made without pull a request.
+            commits.push(Commit {
+                index: 0,
+                author: String::new(),
+                reviewers: Vec::new(),
+                merger: None,
+                hash: commit_hash.clone(),
+                vetted_by: Vec::new(),
+            });
+        }
+
+        for pull in pulls {
+            found_at_least_one_pr = true;
             let author = pull.user.clone().map(|user| user.login).unwrap_or_default();
             let index = pull.number;
+
+            println!("Pull #{} by {author} - {:?}", pull.number, pull.title.clone().unwrap_or_default());
 
             let mut commit = Commit {
                 index,
@@ -137,6 +156,9 @@ pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
                 vetted_by: Vec::new(),
             };
 
+            if project.trusted_reviewers.contains(&commit.author) {
+                commit.vetted_by.push(commit.author.clone());
+            }
             for reviewer in &commit.reviewers {
                 if project.trusted_reviewers.contains(reviewer) {
                     commit.vetted_by.push(reviewer.clone());
@@ -150,6 +172,13 @@ pub fn pull_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
             commits.push(commit);
         }
+    }
+
+    if !found_at_least_one_pr {
+        println!("Now that's odd. We found commits locally via git rev-list but we couldn't get pull requests from the web API.");
+        println!("This could mean:");
+        println!(" - That commits have been merged without pull requests.");
+        println!(" - Or your github authentication token has expired.");
     }
 
     write_csv_output(&commits, &args.output)?;
