@@ -86,7 +86,7 @@ pub fn read_latest_audit(path: &Path) -> io::Result<String> {
 }
 
 struct Commit {
-    index: u64,
+    pull_request: Option<u64>,
     hash: String,
     author: String,
     reviewers: Vec<String>,
@@ -141,7 +141,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
             println!("Found no pull request for this commit");
             // This is less common but it can happen that commits are made without pull a request.
             commits.push(Commit {
-                index: 0,
+                pull_request: None,
                 author: String::new(),
                 reviewers: Vec::new(),
                 merger: None,
@@ -153,16 +153,15 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
         for pull in pulls {
             found_at_least_one_pr = true;
             let author = pull.user.clone().map(|user| user.login).unwrap_or_default();
-            let index = pull.number;
 
             println!("Pull #{} by {author} - {:?}", pull.number, pull.title.clone().unwrap_or_default());
 
             let mut commit = Commit {
-                index,
+                pull_request: Some(pull.number),
                 author,
                 hash: commit_hash.clone(),
-                reviewers: reviewers_for_pull_request(&github, index),
-                merger: merger_for_pull_request(&github, index),
+                reviewers: reviewers_for_pull_request(&github, pull.number),
+                merger: merger_for_pull_request(&github, pull.number),
                 vetted_by: Vec::new(),
             };
 
@@ -293,8 +292,9 @@ fn write_csv_output(items: &[Commit], output: &Option<PathBuf>) -> io::Result<()
     };
 
     for item in items {
+        let pull_request = item.pull_request.map(|num| format!("{num}")).unwrap_or_default();
         writeln!(writer, "{}\t{}\t{}\t{}\t{}\t{}",
-            item.index,
+            pull_request,
             item.hash,
             item.author,
             comma_separated_string(&item.reviewers),
