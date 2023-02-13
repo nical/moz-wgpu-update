@@ -166,18 +166,18 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
                 vetted_by: Vec::new(),
             };
 
-            if project.trusted_reviewers.contains(&commit.author) {
-                commit.vetted_by.push(commit.author.clone());
-            }
-            for reviewer in &commit.reviewers {
-                if project.trusted_reviewers.contains(reviewer) {
-                    commit.vetted_by.push(reviewer.clone());
+            fn maybe_add_vetter(vetted_by: &mut Vec<String>, trusted: &[String], name: &String) {
+                if trusted.contains(name) && !vetted_by.contains(name) {
+                    vetted_by.push(name.to_string());
                 }
             }
+
+            maybe_add_vetter(&mut commit.vetted_by, &project.trusted_reviewers, &commit.author);
+            for reviewer in &commit.reviewers {
+                maybe_add_vetter(&mut commit.vetted_by, &project.trusted_reviewers, reviewer);
+            }
             if let Some(merger) = &commit.merger {
-                if project.trusted_reviewers.contains(merger) {
-                    commit.vetted_by.push(merger.clone());
-                }    
+                maybe_add_vetter(&mut commit.vetted_by, &project.trusted_reviewers, merger);
             }
 
             commits.push(commit);
