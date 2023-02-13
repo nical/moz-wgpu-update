@@ -20,7 +20,7 @@ pub struct AuditArgs {
     /// Optionally write the resulting csv into a file (defaults to stdout)
     #[arg(short, long)]
     output: Option<PathBuf>,
-    /// Whether to pull changes and got to the master branch.
+    /// Whether to pull changes and checkout the master branch.
     #[arg(long)]
     pull: bool,
 }
@@ -185,6 +185,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     }
 
     if !found_at_least_one_pr {
+        println!("");
         println!("Now that's odd. We found commits locally via git rev-list but we couldn't get pull requests from the web API.");
         println!("This could mean:");
         println!(" - That commits have been merged without pull requests.");
@@ -195,7 +196,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
     if let Some(commit) = rev_list.first() {
         if let Some(path) = &project.latest_commit {
-            println!("Saving latest commit {commit:?} to {path:?}");
+            println!("\nSaving latest commit {commit:?} to {path:?}");
             write!(io::BufWriter::new(File::create(path)?), "{commit}")?;
         }
     }

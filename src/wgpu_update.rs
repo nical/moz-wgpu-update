@@ -30,7 +30,7 @@ pub struct Args {
     #[arg(long)]
     build: bool,
 
-    /// Comma separated string of the 3 phabricator revisions (to re-generated already submitted patches).
+    /// Comma separated string of the 3 phabricator revisions (to re-generate already submitted patches).
     #[arg(long)]
     phab_revisions: Option<String>,
 
