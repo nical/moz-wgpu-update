@@ -60,7 +60,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     // If we are already in the destination branch, switch to master so that we
     // can re-create it.
-    let current_branch = read_shell(&config.wgpu.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let current_branch = read_shell(&config.wgpu.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
     if args.on_master {
         shell(&config.wgpu.path, "git", &["checkout", "master"])?;
         shell(&config.wgpu.path, "git", &["pull", &wgpu_upstream, "master"])?;

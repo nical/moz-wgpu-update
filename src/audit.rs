@@ -40,7 +40,7 @@ impl Github {
             // The config file contains either the token token itself or the string "gh" which signifies
             // use the gh command-line app to get the token.
             let token = match &api_token[..] {
-                "gh" => read_shell(&PathBuf::from("."), "gh", &["auth", "token"]).trim().to_string(),
+                "gh" => read_shell(&PathBuf::from("."), "gh", &["auth", "token"]).stdout.trim().to_string(),
                 token => token.to_string(),
             };
 
@@ -64,7 +64,7 @@ fn git_rev_list(path: &Path, from: &str, to: &str) -> io::Result<Vec<String>> {
         return Ok(Vec::new());
     }
 
-    let text = read_shell(path, "git", &["rev-list", &format!("{from}..{to}")]);
+    let text = read_shell(path, "git", &["rev-list", &format!("{from}..{to}")]).stdout;
 
     let mut result = Vec::new();
     for line in text.split('\n') {

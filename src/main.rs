@@ -73,7 +73,7 @@ impl Vcs {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Version {
     pub semver: String,
     pub git_hash: String,
@@ -125,11 +125,16 @@ fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
     Command::new(cmd).args(args).current_dir(directory).status()
 }
 
+pub struct ShellOutput {
+    pub stdout: String,
+    pub stderr: String,
+}
+
 /// Execute a command and read stdout into a string.
 ///
 /// Note that the resulting string will likely have a \n at the end, even
 /// if only one line was written.
-fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> String {
+fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> ShellOutput {
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
@@ -137,14 +142,16 @@ fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> String {
     }
     println!(" -- Running {cmd_str:?}");
 
-    let bytes = Command::new(cmd)
+    let output = Command::new(cmd)
         .args(args)
         .current_dir(directory)
         .output()
-        .unwrap()
-        .stdout;
+        .unwrap();
 
-    String::from_utf8(bytes).unwrap()
+    ShellOutput {
+        stdout: String::from_utf8(output.stdout).unwrap(),
+        stderr: String::from_utf8(output.stderr).unwrap(),
+    }
 }
 
 pub fn concat_path(a: &Path, b: &str) -> PathBuf {
@@ -158,7 +165,7 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
 
 fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::Result<Version> {
     println!("Detecting crate version from local checkout.");
-    let current_branch = read_shell(path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let current_branch = read_shell(path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
     let current_branch = current_branch.trim();
 
     if pull {
@@ -168,7 +175,7 @@ fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::R
         shell(path, "git", &["pull", upstream, "master"])?;
     }
 
-    let git_hash = read_shell(path, "git", &["rev-parse", &format!("{upstream}/master")]).trim().to_string();
+    let git_hash = read_shell(path, "git", &["rev-parse", &format!("{upstream}/master")]).stdout.trim().to_string();
 
     let cargo_toml_path = concat_path(path, "Cargo.toml");
     let reader = io::BufReader::new(File::open(cargo_toml_path)?);

@@ -1,6 +1,6 @@
 use std::{path::PathBuf, fs::File, io::{self, BufWriter}, process::ExitStatus};
 use clap::Parser;
-use crate::{Version, Vcs, read_config_file, cargo_toml, cargo_lock, moz_yaml, shell, crate_version_from_checkout};
+use crate::{Version, Vcs, read_config_file, cargo_toml, cargo_lock, moz_yaml, shell, crate_version_from_checkout, read_shell, concat_path};
 
 // The order of the 3 gecko commits.
 const COMMIT_UPADTE: Option<usize> = Some(0);
@@ -21,6 +21,10 @@ pub struct Args {
     /// Detect the latest version of wgpu from local checkout.
     #[arg(short, long)]
     auto: bool,
+
+    /// Vet from the base revision to the lastest commit instead of from commit to commit.
+    #[arg(short, long)]
+    vet_from_base_revision: bool,
 
     /// Config file to use.
     #[arg(short, long, value_name = "FILE")]
@@ -51,7 +55,7 @@ pub struct Parameters {
     build: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Delta {
     name: String,
     prev: Version,
@@ -111,7 +115,11 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     let deltas = update_wgpu(&params)?;
 
-    vet_changes(&params, &deltas)?;
+    if args.vet_from_base_revision {
+        vet_from_base_revision(&params, &deltas)?;
+    } else{
+        vet_delta(&params, &deltas)?;
+    }
 
     vendor_wgpu_update(&params)?;
 
@@ -194,25 +202,85 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
     std::fs::rename(&tmp_cargo_toml_path, &cargo_toml_path)?;
     std::fs::rename(&tmp_moz_yaml_path, &moz_yaml_path)?;
 
+    refresh_cargo_lock(&params.gecko_path, &params.wgpu_rev);
+
+    let commit = commit(params, &format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"), COMMIT_UPADTE)?;
+    assert!(commit.success());
+
+    // println!("Parsing new crate versions from Cargo.lock");
+    // // Parse Cargo.lock again to get the new version of the crates we are interested in (including
+    // // the new versions of things we didn´t specify but wgpu depends on).
+    // for delta in &mut deltas[..] {
+    //     delta.next = cargo_lock::find_version(&delta.name, &params.gecko_path)?;
+    // }
+
+    find_deltas(&params.gecko_path, &mut deltas);
+
+    Ok(deltas)
+}
+
+fn find_deltas(gecko_path: &PathBuf, deltas: &mut [Delta]) {
+    let output = read_shell(gecko_path, "./mach", &["cargo", "vet"]);
+
+    for line in output.stdout.lines() {
+        if line.contains("missing [\"safe-to-deploy\"]") {
+            if let Some((name, version)) = parse_crate_and_version(line) {
+                for delta in deltas.iter_mut() {
+                    if delta.name == name {
+                        delta.next = version;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for delta in deltas.iter_mut() {
+        if delta.next.semver.is_empty() {
+            delta.next = delta.prev.clone();
+        }
+    }
+}
+
+// Parsing somehting that looks like:  {crate}:{semver}@git:{hash} missing ["safe-to-deploy"]
+fn parse_crate_and_version(src: &str) -> Option<(String, Version)> {
+    let mut crate_version_hash = src.trim()
+        .split_whitespace()
+        .next()?
+        .split("@git:");
+
+    let crate_version = crate_version_hash.next().unwrap();
+    let git_hash = crate_version_hash.next().map(|s| s.to_string()).unwrap_or_default();
+
+    let mut semver = String::new();
+    let colon = crate_version.find(':').unwrap_or(crate_version.len());
+    let name = crate_version[..colon].to_string();
+    if colon + 1 < crate_version.len() {
+        semver = crate_version[(colon+1)..].to_string();
+    }
+
+    Some((name, Version { semver, git_hash }))
+}
+
+fn refresh_cargo_lock(gecko_path: &PathBuf, wgpu_rev: &str) {
     println!("Refresh Cargo.lock");
     // Run a cargo command that will cause it to pick up the new version of the crates that we
     // updated in wgpu_bindings/Cagro.toml (and their depdendencies) and write them in Cargo.lock
     // without trying to update unrelated crates. There may be other ways but this one appears to
     // do what we want.
-    shell(&params.gecko_path, "cargo", &["update", "--package", "wgpu-core", "--precise", &params.wgpu_rev])?;
+    let output = read_shell(gecko_path, "cargo", &["update", "--package", "wgpu-core", "--precise", wgpu_rev]);
 
-    let commit = commit(params, &format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"), COMMIT_UPADTE)?;
-    assert!(commit.success());
+    if output.stderr.contains("object not found - no match for id") {
+        println!("Uh oh, cargo is acting up:");
+        println!("{}", output.stderr);
+        println!("I've experienced this error intermittently.\n Working around with another command...",);
 
-    println!("Parsing new crate versions from Cargo.lock");
-    // Parse Cargo.lock again to get the new version of the crates we are interested in (including
-    // the new versions of things we didn´t specify but wgpu depends on).
-    for delta in &mut deltas[..] {
-        delta.next = cargo_lock::find_version(&delta.name, &params.gecko_path)?;
+        let _ = read_shell(&concat_path(gecko_path, "gfx/wgpu_bindings/"), "cargo", &["check"]);
+
+        println!("...done.")
     }
-
-    Ok(deltas)
 }
+
 
 fn vendor_wgpu_update(params: &Parameters) -> io::Result<()> {
 
@@ -225,7 +293,7 @@ fn vendor_wgpu_update(params: &Parameters) -> io::Result<()> {
     Ok(())
 }
 
-fn vet_changes(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
+fn vet_delta(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
     for delta in deltas {
         let crate_name = &delta.name;
         let prev = delta.prev.to_string();
@@ -235,6 +303,34 @@ fn vet_changes(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
             continue;
         }
 
+        let vet = shell(&params.gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &prev, &next, "--criteria", "safe-to-deploy", "--accept-all"])?;
+        assert!(vet.success());
+    }
+
+    let commit = commit(params, "Vet wgpu and naga commits. r=#supply-chain-reviewers", COMMIT_AUDIT)?;
+    assert!(commit.success());
+
+    let _ = shell(&params.gecko_path, "./mach", &["cargo", "vet"]);
+
+    Ok(())
+}
+
+fn vet_from_base_revision(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
+    for delta in deltas {
+        let crate_name = &delta.name;
+        if delta.prev == delta.next {
+            println!("{crate_name} version has not changed ({}).", delta.prev.to_string());
+            continue;
+        }
+
+        let mut prev = delta.prev.semver.clone();
+        if delta.prev.semver != delta.next.semver {
+            let vet = shell(&params.gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &delta.prev.semver, &delta.next.semver, "--criteria", "safe-to-deploy", "--accept-all"])?;
+            assert!(vet.success());
+            prev = delta.next.semver.clone();
+        }
+
+        let next = delta.next.to_string();
         let vet = shell(&params.gecko_path, "./mach", &["cargo", "vet", "certify", crate_name, &prev, &next, "--criteria", "safe-to-deploy", "--accept-all"])?;
         assert!(vet.success());
     }
