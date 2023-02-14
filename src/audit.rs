@@ -116,7 +116,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let github = Github::new(&args.project, config.github_api_token.clone())?;
 
     if args.pull {
-        let upstream = project.updatream_remote.as_ref().map(|s| s.as_str()).unwrap_or("upstream");
+        let upstream = project.upstream_remote.as_ref().map(|s| s.as_str()).unwrap_or("upstream");
         shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before running moz-wgpu audit"])?;
         shell(&project.path, "git", &["checkout", "master"])?;
         shell(&project.path, "git", &["pull", upstream, "master"])?;

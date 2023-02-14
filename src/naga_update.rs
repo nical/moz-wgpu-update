@@ -36,8 +36,8 @@ pub struct Args {
 pub fn update_command(args: &Args) -> io::Result<()> {
     let config = read_config_file(&args.config)?;
 
-    let wgpu_upstream = config.wgpu.updatream_remote.unwrap_or_else(|| "upstream".to_string());
-    let naga_upstream = config.naga.updatream_remote.unwrap_or_else(|| "upstream".to_string());
+    let wgpu_upstream = config.wgpu.upstream_remote.unwrap_or_else(|| "upstream".to_string());
+    let naga_upstream = config.naga.upstream_remote.unwrap_or_else(|| "upstream".to_string());
 
     let version = if args.auto {
         println!("Detecting naga version from local checkout.");

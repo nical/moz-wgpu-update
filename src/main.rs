@@ -51,7 +51,7 @@ pub struct Gecko {
 #[serde(rename_all = "kebab-case")]
 pub struct GithubProject {
     path: PathBuf,
-    updatream_remote: Option<String>,
+    upstream_remote: Option<String>,
     trusted_reviewers: Vec<String>,
     latest_commit: Option<PathBuf>,
 }
