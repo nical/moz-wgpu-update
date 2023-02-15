@@ -6,7 +6,7 @@ Scripts to automate the process of updating wgpu in mozilla-central.
 
 ## Setup
 
-You will need a `.moz-wgpu.toml` file with information about where the various repositories are on disk, for example mine looks like this:
+You will need a `.moz-wgpu.toml` file with information about where the various repositories are on disk. For example, mine looks like this:
 
 ```toml
 github-api-token = "gh"
@@ -30,20 +30,20 @@ latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-naga-commit.txt"
 
 `upstream-remote` is the name of the remote git will pull from (for example `upstream` in the command `git pull upstream master`) to get the latest changes. If not specified, the default is "upstream".
 
-`github-api-token` is needed by the `audit` command, it is explained later in this document.
+`github-api-token` is needed by the `audit` command. It is explained later in this document.
 
 The script will look for the configuration file in the current folder, then in the home folder.
 
-You can install the script like any rust binary:
+You can install the script like any Rust binary:
 
 ```bash
 $ cargo install --path path/to/this/repository/
 ```
 
-Or just run it form this reporsitory's root folder. If so, replace the beginning of the command `moz-wgpu ` with `cargo run -- ` in all of the examples in this document.
+Or just run it form this repository's root folder. In this case, replace the beginning of the command `moz-wgpu ` with `cargo run -- ` in all of the examples in this document.
 
 
-## Updateing wgpu in mozilla-central
+## Updating wgpu in mozilla-central
 
 ```bash
 # Update the wgpu dependencies in mozilla-central to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a
@@ -66,11 +66,11 @@ This creates 3 commits:
 - Bug 1813547 - Vendor wgpu changes. r=#webgpu-reviewers
 - Bug 1813547 - Vet wgpu and naga commits. r=#supply-chain-reviewers
 
-In practice there is often going to be fixes to make along the way, causing you to re-generate the commits multiple time.
+In practice there are often going to be fixes to make along the way, causing you to re-generate the commits multiple times.
 
-If so, you may want to pass `--skip-pramble` on subsequent runs. The preamble commits any uncommitted changes in mozilla-central runs `cargo vendor rust` to make sure there is no unrelated crates that will be picked up later when the script vendors the wgpu changes. That takes time and there is no need to run it again on first run the script did not produce commit messages that start with "(Dont' land)".
+If so, you may want to pass `--skip-preamble` on subsequent runs. The preamble commits any uncommitted changes in mozilla-central and runs `cargo vendor rust` to make sure there are no unrelated crates that will be picked up later when the script vendors the wgpu changes. That takes time and there is no need to run it again as long as, on the first run, the script did not produce commit messages that start with "(Don't land)".
 
-If you have already submitted the commits to phabricator and want to re-generate them, you'll want to make sure the new commits update the corresponding phabricator revisions. It is tedious to manually edit each commit message to add the revision marker every time they are re-generated. The script can do that for you if you pass a comma separated list of the three phabricator revision ids in their order of creation using `--phab_revisions`, for example:
+If you have already submitted the commits to phabricator and want to re-generate them, you'll want to make sure the new commits update the corresponding phabricator revisions. It is tedious to manually edit each commit message to add the revision marker every time they are re-generated. The script can do that for you if you pass a comma separated list of the three phabricator revision ids in their order of creation using `--phab-revisions`, for example:
 
 ```bash
 $ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
@@ -82,9 +82,9 @@ $ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug
 $ moz-wpgu naga-update --auto --branch "naga-up" --test
 ```
 
-`--auto` will automatically deptect the changes from your local naga checkout's master branch. Note that it will pull changes into your master branch. you can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
+`--auto` will automatically detect the changes from your local naga checkout's master branch. Note that it will pull changes into your master branch. You can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
 
-`--branch` lets you specify the branch to write the update into (defaults to "naga-update"). Note that the branch will be re-created each time the command is run.
+`--branch` lets you specify the branch to write the update into. This defaults to "naga-update". Note that the branch will be re-created each time the command is run.
 
 # The Full auditting and update process
 
@@ -97,7 +97,7 @@ Before running the command, you must set up a github API token so that the tool 
 Here is an example of using the script to gather information about `wgpu` commits between specific revisions and write the output into `./wgpu-commits.csv`.
 
 ```
-$ moz-wgpu audit wgpu --from 41de797c745d317e93b9cf50e7446faff7f65954 --to HEAD -o ./wgpu-commits.csv
+$ moz-wgpu audit wgpu --from c371e7039dac763b08ada0a35f6c11cd71052010 --to HEAD -o ./wgpu-commits.csv
 ```
 
 - `--to` defaults to `HEAD` so we don't actually need to pass it.
@@ -136,7 +136,7 @@ This has to be appended to the wgpu-vet shared spreadsheet.
 
 The script printed to stdout a csv-formatted list of commits that have to be appended to the wgpu-vet shared spreadsheet.
 
-The spreadheet contains a "vetted by" column, any commit that does not have a name in there must be auditted. The spreadsheet generates links to the pull requests, now is a good time to follow the links of whatever needs auditting, do the audit and add your name in the corresponding cells of the "vetted by" column.
+The spreadheet contains a "vetted by" column, and any commit that does not have a name in there must be audited. The spreadsheet generates links to the pull requests. Now is a good time to follow the links of whatever needs auditing, do the audit and add your name in the corresponding cell of the "vetted by" column.
 
 ## Repeat the previous steps for naga
 
@@ -144,7 +144,7 @@ The audit command works the same way for wgpu and naga.
 
 ## Prep mozilla-central
 
-Nothing surprising here, we just don't want to accidentally pick up uncommitted changes, although if you forget, the tool will detect that and put it in anoter commit.
+Nothing surprising here, we just don't want to accidentally pick up uncommitted changes, although if you forget, the tool will detect that and put it in another commit.
 
 ```bash
 $ cd /path/to/mozilla-central
@@ -169,18 +169,18 @@ Adding `--open` directly opens the url with firefox.
 
 ## Run this tool
 
-Copy the hash that was printed to stdout at the end of the previous step with jim's scripts (in the previous example it was `98ea3500fd2cfb4b51d5454c662d8eefd940156a`) as well as the bug number (example `1813547`) and use it as input for this tool.
+Copy the hash that was printed to stdout at the end of the previous step with jim's scripts (in the previous example it was `41de797c745d317e93b9cf50e7446faff7f65954`) as well as the bug number (example `1813547`) and use it as input for this tool.
 
 ```bash
 $ cd path/to/this/repository
-$ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
+$ moz-wpgu wgpu-update --git-hash 41de797c745d317e93b9cf50e7446faff7f65954 --bug 1813547
 ```
 
 The bug number if optional. If absent, it just won't be in the commit messages.
 
 If everything went well, you have 3 new commits in mozilla central:
 
-- Bug 1813547 - Update wgpu to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a. r=#webgpu-reviewers
+- Bug 1813547 - Update wgpu to revision 41de797c745d317e93b9cf50e7446faff7f65954. r=#webgpu-reviewers
 - Bug 1813547 - Vendor wgpu changes. r=#webgpu-reviewers
 - Bug 1813547 - Vet wgpu and naga commits. r=#supply-chain-reviewers
 
@@ -205,7 +205,7 @@ $ ./mach build
 
 If there are build errors, it might be that `wgpu-core`'s API has changed. Fix the issue (hopefully all of the changes can be done in mozilla-central), and create a new commit.
 
-You could fold these fixes into the commit `Bug 1813547 - Update wgpu to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a. r=#webgpu-reviewers`, only do that if you are certain you won't need to re-generate the commits.
+You could fold these fixes into the commit `Bug 1813547 - Update wgpu to revision 41de797c745d317e93b9cf50e7446faff7f65954. r=#webgpu-reviewers`, only do that if you are certain you won't need to re-generate the commits.
 
 ## Submit the changes for review, wait for the review and land them
 
