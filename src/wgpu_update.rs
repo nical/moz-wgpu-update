@@ -142,7 +142,12 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 /// Do a few things to make sure we start in a good state.
 fn preamble(params: &Parameters) -> io::Result<()> {
 
-    let _ = shell(&params.gecko_path, "hg", &["diff"]);
+    let vcs = match params.vcs {
+        Vcs::Mercurial => "hg",
+        Vcs::Git => "git"
+    };
+
+    let _ = shell(&params.gecko_path, vcs, &["diff"]);
     let _ = commit(params, "(Don't land) Uncommited changes before the wgpu update.", None);
 
     let _ = shell(&params.gecko_path, "./mach", &["vendor", "rust"]);
