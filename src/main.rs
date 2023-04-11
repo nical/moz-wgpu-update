@@ -179,15 +179,17 @@ fn crate_version_from_checkout(project: &GithubProject, pull: bool) -> io::Resul
     let current_branch = read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
     let current_branch = current_branch.trim();
 
+    let upstream = &project.upstream_remote;
+    let main_branch = &&project.main_branch;
+
     if pull {
-        // Temporarily switch to the master branch.
+        // Temporarily switch to the main branch.
         shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
-        shell(&project.path, "git", &["checkout", "master"])?;
-        shell(&project.path, "git", &["pull", &project.upstream_remote, "master"])?;
+        shell(&project.path, "git", &["checkout", main_branch])?;
+        shell(&project.path, "git", &["pull", &project.upstream_remote, main_branch])?;
     }
 
-    let upstream = &project.upstream_remote;
-    let git_hash = read_shell(&project.path, "git", &["rev-parse", &format!("{upstream}/master")]).stdout.trim().to_string();
+    let git_hash = read_shell(&project.path, "git", &["rev-parse", &format!("{upstream}/{main_branch}")]).stdout.trim().to_string();
 
     let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
     let reader = io::BufReader::new(File::open(cargo_toml_path)?);

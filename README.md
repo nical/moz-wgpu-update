@@ -29,6 +29,7 @@ latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-naga-commit.txt"
 ```
 
 `upstream-remote` is the name of the remote git will pull from (for example `upstream` in the command `git pull upstream master`) to get the latest changes. If not specified, the default is "upstream".
+`main-branch` is the project's main branch. It should be "master" for naga and "trunk" for wgpu.
 
 `github-api-token` is needed by the `audit` command. It is explained later in this document.
 
@@ -54,7 +55,7 @@ or
 
 ```bash
 # Similar, except that `--auto` tells script to detect the latest wgpu revision from your local
-# checkout's master branch. Beware! This will pull changes in wgpu's master branch.
+# checkout's trunk branch. Beware! This will pull changes in wgpu's trunk branch.
 $ moz-wgpu wgpu-update --auto --bug 1813547
 ```
 
