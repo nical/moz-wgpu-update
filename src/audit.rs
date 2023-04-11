@@ -20,7 +20,7 @@ pub struct AuditArgs {
     /// Optionally write the resulting csv into a file (defaults to stdout)
     #[arg(short, long)]
     output: Option<PathBuf>,
-    /// Whether to pull changes and checkout the master branch.
+    /// Whether to pull changes and checkout the main branch.
     #[arg(long)]
     pull: bool,
 }
@@ -116,10 +116,10 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let github = Github::new(&args.project, config.github_api_token.clone())?;
 
     if args.pull {
-        let upstream = project.upstream_remote.as_ref().map(|s| s.as_str()).unwrap_or("upstream");
+        let upstream = &project.upstream_remote;
         shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before running moz-wgpu audit"])?;
-        shell(&project.path, "git", &["checkout", "master"])?;
-        shell(&project.path, "git", &["pull", upstream, "master"])?;
+        shell(&project.path, "git", &["checkout", &project.main_branch])?;
+        shell(&project.path, "git", &["pull", upstream, &project.main_branch])?;
     }
 
     let rev_list = git_rev_list(&project.path, &start_commit, &end_commit)?;

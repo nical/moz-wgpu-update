@@ -51,9 +51,20 @@ pub struct Gecko {
 #[serde(rename_all = "kebab-case")]
 pub struct GithubProject {
     path: PathBuf,
-    upstream_remote: Option<String>,
+    #[serde(default = "default_branch")]
+    main_branch: String,
+    #[serde(default = "default_remote")]
+    upstream_remote: String,
     trusted_reviewers: Vec<String>,
     latest_commit: Option<PathBuf>,
+}
+
+fn default_branch() -> String {
+    "main".into()
+}
+
+fn default_remote() -> String {
+    "upstream".into()
 }
 
 #[derive(Copy, Clone)]
@@ -163,27 +174,28 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
     path
 }
 
-fn crate_version_from_checkout(path: &Path, upstream: &str, pull: bool) -> io::Result<Version> {
+fn crate_version_from_checkout(project: &GithubProject, pull: bool) -> io::Result<Version> {
     println!("Detecting crate version from local checkout.");
-    let current_branch = read_shell(path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
+    let current_branch = read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
     let current_branch = current_branch.trim();
 
     if pull {
         // Temporarily switch to the master branch.
-        shell(path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
-        shell(path, "git", &["checkout", "master"])?;
-        shell(path, "git", &["pull", upstream, "master"])?;
+        shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
+        shell(&project.path, "git", &["checkout", "master"])?;
+        shell(&project.path, "git", &["pull", &project.upstream_remote, "master"])?;
     }
 
-    let git_hash = read_shell(path, "git", &["rev-parse", &format!("{upstream}/master")]).stdout.trim().to_string();
+    let upstream = &project.upstream_remote;
+    let git_hash = read_shell(&project.path, "git", &["rev-parse", &format!("{upstream}/master")]).stdout.trim().to_string();
 
-    let cargo_toml_path = concat_path(path, "Cargo.toml");
+    let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
     let reader = io::BufReader::new(File::open(cargo_toml_path)?);
     let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
 
     if pull {
         // Switch back to the previous branch.
-        shell(path, "git", &["checkout", current_branch])?;
+        shell(&project.path, "git", &["checkout", current_branch])?;
     }
 
     Ok(Version { semver, git_hash })

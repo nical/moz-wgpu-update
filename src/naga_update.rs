@@ -20,9 +20,9 @@ pub struct Args {
     #[arg(short, long)]
     branch: Option<String>,
 
-    /// Checkout and pull naga's master branch before creating the update branch.
+    /// Checkout and pull wgpu's trunk branch before creating the update branch.
     #[arg(long)]
-    on_master: bool,
+    on_trunk: bool,
 
     /// Config file to use.
     #[arg(short, long, value_name = "FILE")]
@@ -36,12 +36,9 @@ pub struct Args {
 pub fn update_command(args: &Args) -> io::Result<()> {
     let config = read_config_file(&args.config)?;
 
-    let wgpu_upstream = config.wgpu.upstream_remote.unwrap_or_else(|| "upstream".to_string());
-    let naga_upstream = config.naga.upstream_remote.unwrap_or_else(|| "upstream".to_string());
-
     let version = if args.auto {
         println!("Detecting naga version from local checkout.");
-        crate_version_from_checkout(&config.naga.path, &naga_upstream, true)?
+        crate_version_from_checkout(&config.naga, true)?
     } else {
         Version {
             semver: args.semver.clone().unwrap_or(String::new()),
@@ -61,13 +58,13 @@ pub fn update_command(args: &Args) -> io::Result<()> {
     // If we are already in the destination branch, switch to master so that we
     // can re-create it.
     let current_branch = read_shell(&config.wgpu.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
-    if args.on_master {
-        shell(&config.wgpu.path, "git", &["checkout", "master"])?;
-        shell(&config.wgpu.path, "git", &["pull", &wgpu_upstream, "master"])?;
+    if args.on_trunk {
+        shell(&config.wgpu.path, "git", &["checkout", "trunk"])?;
+        shell(&config.wgpu.path, "git", &["pull", &config.wgpu.upstream_remote, "trunk"])?;
     }
     if current_branch.trim() == branch_name {
-        println!("Temporarily swicthing to master");
-        shell(&config.wgpu.path, "git", &["checkout", "master"])?;
+        println!("Temporarily swicthing to trunk");
+        shell(&config.wgpu.path, "git", &["checkout", "trunk"])?;
     }
 
     // Delete, recreate the branch and switch to it

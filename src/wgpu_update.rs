@@ -85,8 +85,7 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
     });
 
     let wgpu_rev = if args.auto {
-        let remote = config.wgpu.upstream_remote.unwrap_or_else(|| "upstream".to_string());
-        let wgpu = crate_version_from_checkout(&config.wgpu.path, &remote, true)?;
+        let wgpu = crate_version_from_checkout(&config.wgpu, true)?;
 
         wgpu.git_hash
     } else {
