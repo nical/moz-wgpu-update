@@ -1,7 +1,7 @@
-use std::io::{self, BufRead};
-use std::fs::File;
-use std::path::Path;
 use crate::Version;
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::Path;
 
 // Try to extract the wgpu semver version and commit hash from mozilla-central's Cargo.lock.
 pub fn find_version(name: &str, gecko_path: &Path) -> io::Result<Version> {
@@ -44,7 +44,10 @@ pub fn find_version(name: &str, gecko_path: &Path) -> io::Result<Version> {
         }
     }
 
-    assert!(found_package, "Could no find {name} in the Cargo.toml file.");
+    assert!(
+        found_package,
+        "Could no find {name} in the Cargo.toml file."
+    );
 
     Ok(Version {
         semver: semver.unwrap(),

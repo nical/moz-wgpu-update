@@ -1,6 +1,13 @@
-use std::{path::PathBuf, fs::File, io::{self, BufWriter}};
+use crate::{
+    cargo_toml, concat_path, crate_version_from_checkout, read_config_file, read_shell, shell,
+    Version,
+};
 use clap::Parser;
-use crate::{read_config_file, cargo_toml, shell, read_shell, concat_path, Version, crate_version_from_checkout};
+use std::{
+    fs::File,
+    io::{self, BufWriter},
+    path::PathBuf,
+};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -46,21 +53,37 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         }
     };
 
-    println!("Will update wgpu's naga dependency to {}", version.to_string());
+    println!(
+        "Will update wgpu's naga dependency to {}",
+        version.to_string()
+    );
 
     let branch_name = args.branch.clone().unwrap_or("naga-update".to_string());
 
     // Commit any potential uncommitted changes before doing the update.
     // Run cargo check to make sure the lock file is up to date.
     shell(&config.wgpu.path, "cargo", &["check"])?;
-    shell(&config.wgpu.path, "git", &["commit", "-am", "Uncommitted changes before naga update."])?;
+    shell(
+        &config.wgpu.path,
+        "git",
+        &["commit", "-am", "Uncommitted changes before naga update."],
+    )?;
 
     // If we are already in the destination branch, switch to master so that we
     // can re-create it.
-    let current_branch = read_shell(&config.wgpu.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
+    let current_branch = read_shell(
+        &config.wgpu.path,
+        "git",
+        &["rev-parse", "--abbrev-ref", "HEAD"],
+    )
+    .stdout;
     if args.on_trunk {
         shell(&config.wgpu.path, "git", &["checkout", "trunk"])?;
-        shell(&config.wgpu.path, "git", &["pull", &config.wgpu.upstream_remote, "trunk"])?;
+        shell(
+            &config.wgpu.path,
+            "git",
+            &["pull", &config.wgpu.upstream_remote, "trunk"],
+        )?;
     }
     if current_branch.trim() == branch_name {
         println!("Temporarily swicthing to trunk");

@@ -1,17 +1,22 @@
 #![allow(clippy::inherent_to_string)]
 
-mod cargo_toml;
-mod moz_yaml;
-mod cargo_lock;
-mod wgpu_update;
-mod naga_update;
-mod helpers;
 mod audit;
+mod cargo_lock;
+mod cargo_toml;
+mod helpers;
+mod moz_yaml;
+mod naga_update;
+mod wgpu_update;
 
-use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}, process::ExitStatus};
-use std::process::Command;
 use clap::Parser;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
+use std::process::Command;
+use std::{
+    fs::File,
+    io::{self, Read},
+    path::{Path, PathBuf},
+    process::ExitStatus,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -75,11 +80,15 @@ pub enum Vcs {
 
 impl Vcs {
     pub fn new(string: &Option<String>) -> Self {
-        let vcs_str = string.as_ref().map(String::as_str).unwrap_or("hg").to_lowercase();
+        let vcs_str = string
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or("hg")
+            .to_lowercase();
         match vcs_str.as_str() {
             "hg" | "mercurial" => Vcs::Mercurial,
             "git" => Vcs::Git,
-            _ => panic!("Unsupported version control system {vcs_str:?}")
+            _ => panic!("Unsupported version control system {vcs_str:?}"),
         }
     }
 }
@@ -95,7 +104,7 @@ impl Version {
     /// semver string if there is no git hash.
     pub fn to_string(&self) -> String {
         if self.git_hash.is_empty() {
-            return self.semver.clone()
+            return self.semver.clone();
         }
 
         format!("{}@git:{}", self.semver, self.git_hash)
@@ -104,7 +113,10 @@ impl Version {
 
 fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
     let in_current_dir = PathBuf::from("./.moz-wgpu.toml");
-    let in_home = dirs::home_dir().map(|mut path| { path.push(".moz-wgpu.toml"); path });
+    let in_home = dirs::home_dir().map(|mut path| {
+        path.push(".moz-wgpu.toml");
+        path
+    });
 
     let mut config_file = if let Some(path) = path {
         File::open(path)?
@@ -112,7 +124,9 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
         file
     } else if let Some(in_home) = in_home {
         File::open(&in_home).ok().unwrap_or_else(|| {
-            panic!("Could not find config file. Seached locations \n{in_current_dir:?}\n{in_home:?}");
+            panic!(
+                "Could not find config file. Seached locations \n{in_current_dir:?}\n{in_home:?}"
+            );
         })
     } else {
         panic!();
@@ -176,7 +190,8 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
 
 fn crate_version_from_checkout(project: &GithubProject, pull: bool) -> io::Result<Version> {
     println!("Detecting crate version from local checkout.");
-    let current_branch = read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
+    let current_branch =
+        read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
     let current_branch = current_branch.trim();
 
     let upstream = &project.upstream_remote;
@@ -184,12 +199,27 @@ fn crate_version_from_checkout(project: &GithubProject, pull: bool) -> io::Resul
 
     if pull {
         // Temporarily switch to the main branch.
-        shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
+        shell(
+            &project.path,
+            "git",
+            &["commit", "-am", "Uncommitted changes before update."],
+        )?;
         shell(&project.path, "git", &["checkout", main_branch])?;
-        shell(&project.path, "git", &["pull", &project.upstream_remote, main_branch])?;
+        shell(
+            &project.path,
+            "git",
+            &["pull", &project.upstream_remote, main_branch],
+        )?;
     }
 
-    let git_hash = read_shell(&project.path, "git", &["rev-parse", &format!("{upstream}/{main_branch}")]).stdout.trim().to_string();
+    let git_hash = read_shell(
+        &project.path,
+        "git",
+        &["rev-parse", &format!("{upstream}/{main_branch}")],
+    )
+    .stdout
+    .trim()
+    .to_string();
 
     let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
     let reader = io::BufReader::new(File::open(cargo_toml_path)?);
