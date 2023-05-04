@@ -1,7 +1,4 @@
-use crate::{
-    cargo_toml, concat_path, crate_version_from_checkout, read_config_file, read_shell, shell,
-    Version,
-};
+use crate::{cargo_toml, concat_path, read_config_file, read_shell, shell, Version};
 use clap::Parser;
 use std::{
     fs::File,
@@ -45,7 +42,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     let version = if args.auto {
         println!("Detecting `naga` version from local checkout.");
-        crate_version_from_checkout(&config.naga, true)?
+        Version::from_git_checkout(&config.naga, true)?
     } else {
         Version {
             semver: args.semver.clone().unwrap_or(String::new()),

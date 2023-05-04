@@ -110,6 +110,51 @@ impl Version {
             write!(f, "{}@git:{}", self.semver, self.git_hash)
         })
     }
+
+    fn from_git_checkout(project: &GithubProject, pull: bool) -> io::Result<Self> {
+        println!("Detecting crate version from local checkout.");
+        let current_branch =
+            read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
+        let current_branch = current_branch.trim();
+
+        let upstream = &project.upstream_remote;
+        let main_branch = &&project.main_branch;
+
+        if pull {
+            // Temporarily switch to the main branch.
+            shell(
+                &project.path,
+                "git",
+                &["commit", "-am", "Uncommitted changes before update."],
+            )?;
+            shell(&project.path, "git", &["checkout", main_branch])?;
+            shell(
+                &project.path,
+                "git",
+                &["pull", &project.upstream_remote, main_branch],
+            )?;
+        }
+
+        let git_hash = read_shell(
+            &project.path,
+            "git",
+            &["rev-parse", &format!("{upstream}/{main_branch}")],
+        )
+        .stdout
+        .trim()
+        .to_string();
+
+        let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
+        let reader = io::BufReader::new(File::open(cargo_toml_path)?);
+        let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
+
+        if pull {
+            // Switch back to the previous branch.
+            shell(&project.path, "git", &["checkout", current_branch])?;
+        }
+
+        Ok(Self { semver, git_hash })
+    }
 }
 
 fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
@@ -187,51 +232,6 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
     }
 
     path
-}
-
-fn crate_version_from_checkout(project: &GithubProject, pull: bool) -> io::Result<Version> {
-    println!("Detecting crate version from local checkout.");
-    let current_branch =
-        read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
-    let current_branch = current_branch.trim();
-
-    let upstream = &project.upstream_remote;
-    let main_branch = &&project.main_branch;
-
-    if pull {
-        // Temporarily switch to the main branch.
-        shell(
-            &project.path,
-            "git",
-            &["commit", "-am", "Uncommitted changes before update."],
-        )?;
-        shell(&project.path, "git", &["checkout", main_branch])?;
-        shell(
-            &project.path,
-            "git",
-            &["pull", &project.upstream_remote, main_branch],
-        )?;
-    }
-
-    let git_hash = read_shell(
-        &project.path,
-        "git",
-        &["rev-parse", &format!("{upstream}/{main_branch}")],
-    )
-    .stdout
-    .trim()
-    .to_string();
-
-    let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
-    let reader = io::BufReader::new(File::open(cargo_toml_path)?);
-    let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
-
-    if pull {
-        // Switch back to the previous branch.
-        shell(&project.path, "git", &["checkout", current_branch])?;
-    }
-
-    Ok(Version { semver, git_hash })
 }
 
 fn main() -> io::Result<()> {

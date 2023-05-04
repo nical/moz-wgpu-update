@@ -1,6 +1,6 @@
 use crate::{
-    cargo_lock, cargo_toml, concat_path, crate_version_from_checkout, moz_yaml, read_config_file,
-    read_shell, shell, Vcs, Version,
+    cargo_lock, cargo_toml, concat_path, moz_yaml, read_config_file, read_shell, shell, Vcs,
+    Version,
 };
 use clap::Parser;
 use std::{
@@ -100,7 +100,7 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
     });
 
     let wgpu_rev = if args.auto {
-        let wgpu = crate_version_from_checkout(&config.wgpu, true)?;
+        let wgpu = Version::from_git_checkout(&config.wgpu, true)?;
 
         wgpu.git_hash
     } else {
