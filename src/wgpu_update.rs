@@ -157,9 +157,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         );
     }
 
-    println!("It would also be a good idea to do a try run including the following tests:");
-    println!(" - source-test-mozlint-updatebot");
-    println!(" - source-test-vendor-rust");
+    println!("It would also be a good idea to do `./mach try --preset webgpu`.");
 
     Ok(())
 }
