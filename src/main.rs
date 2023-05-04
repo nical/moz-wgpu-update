@@ -10,13 +10,12 @@ use anyhow::bail;
 use clap::Parser;
 use format::lazy_format;
 use serde_derive::{Deserialize, Serialize};
-use std::process::Command;
 use std::{
     fmt::Display,
     fs::File,
     io::{self, Read},
     path::{Path, PathBuf},
-    process::ExitStatus,
+    process::{Command, ExitStatus},
     str::FromStr,
 };
 
