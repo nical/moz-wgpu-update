@@ -21,17 +21,17 @@ use std::{
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub enum Args {
-    /// Update wgpu in mozilla-central.
+    /// Update `wgpu` in `mozilla-central`.
     WgpuUpdate(wgpu_update::Args),
-    /// Update naga in wgpu.
+    /// Update `naga` in `wgpu`.
     NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
     /// List commits to audit.
     Audit(audit::AuditArgs),
-    /// Run a mach command in the mozilla-central directory.
+    /// Run a `mach` command in the `mozilla-central` directory.
     Mach(helpers::MachArgs),
-    /// Run `hg histedit` in mozilla-central.
+    /// Run `hg histedit` in `mozilla-central`.
     Histedit,
     /// Push a try run to Firefox's CI.
     Try,

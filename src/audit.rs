@@ -141,7 +141,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
             &[
                 "commit",
                 "-am",
-                "Uncommitted changes before running moz-wgpu audit",
+                "Uncommitted changes before running `moz-wgpu audit`",
             ],
         )?;
         shell(&project.path, "git", &["checkout", &project.main_branch])?;

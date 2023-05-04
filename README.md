@@ -1,4 +1,4 @@
-# moz-wgpu-update
+# `moz-wgpu-update`
 
 Scripts to automate the process of updating wgpu in mozilla-central.
 
@@ -29,7 +29,7 @@ latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-naga-commit.txt"
 ```
 
 `upstream-remote` is the name of the remote git will pull from (for example `upstream` in the command `git pull upstream master`) to get the latest changes. If not specified, the default is "upstream".
-`main-branch` is the project's main branch. It should be "master" for naga and "trunk" for wgpu.
+`main-branch` is the project's main branch. It should be `master` for `naga` and `trunk` for `wgpu`.
 
 `github-api-token` is needed by the `audit` command. It is explained later in this document.
 
@@ -44,18 +44,18 @@ $ cargo install --path path/to/this/repository/
 Or just run it form this repository's root folder. In this case, replace the beginning of the command `moz-wgpu ` with `cargo run -- ` in all of the examples in this document.
 
 
-## Updating wgpu in mozilla-central
+## Updating `wgpu` in mozilla-central
 
 ```bash
-# Update the wgpu dependencies in mozilla-central to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a
+# Update the `wgpu` dependencies in mozilla-central to revision 98ea3500fd2cfb4b51d5454c662d8eefd940156a
 $ moz-wgpu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547
 ```
 
 or
 
 ```bash
-# Similar, except that `--auto` tells script to detect the latest wgpu revision from your local
-# checkout's trunk branch. Beware! This will pull changes in wgpu's trunk branch.
+# Similar, except that `--auto` tells script to detect the latest `wgpu` revision from your local
+# checkout's trunk branch. Beware! This will pull changes in `wgpu`'s trunk branch.
 $ moz-wgpu wgpu-update --auto --bug 1813547
 ```
 
@@ -69,7 +69,7 @@ This creates 3 commits:
 
 In practice there are often going to be fixes to make along the way, causing you to re-generate the commits multiple times.
 
-If so, you may want to pass `--skip-preamble` on subsequent runs. The preamble commits any uncommitted changes in mozilla-central and runs `cargo vendor rust` to make sure there are no unrelated crates that will be picked up later when the script vendors the wgpu changes. That takes time and there is no need to run it again as long as, on the first run, the script did not produce commit messages that start with "(Don't land)".
+If so, you may want to pass `--skip-preamble` on subsequent runs. The preamble commits any uncommitted changes in mozilla-central and runs `cargo vendor rust` to make sure there are no unrelated crates that will be picked up later when the script vendors the `wgpu` changes. That takes time and there is no need to run it again as long as, on the first run, the script did not produce commit messages that start with "(Don't land)".
 
 If you have already submitted the commits to phabricator and want to re-generate them, you'll want to make sure the new commits update the corresponding phabricator revisions. It is tedious to manually edit each commit message to add the revision marker every time they are re-generated. The script can do that for you if you pass a comma separated list of the three phabricator revision ids in their order of creation using `--phab-revisions`, for example:
 
@@ -77,19 +77,19 @@ If you have already submitted the commits to phabricator and want to re-generate
 $ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
 ```
 
-## Updating naga in wgpu
+## Updating `naga` in `wgpu`
 
 ```bash
 $ moz-wpgu naga-update --auto --branch "naga-up" --test
 ```
 
-`--auto` will automatically detect the changes from your local naga checkout's master branch. Note that it will pull changes into your master branch. You can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
+`--auto` will automatically detect the changes from your local `naga` checkout's master branch. Note that it will pull changes into your master branch. You can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
 
-`--branch` lets you specify the branch to write the update into. This defaults to "naga-update". Note that the branch will be re-created each time the command is run.
+`--branch` lets you specify the branch to write the update into. This defaults to `naga-update`. Note that the branch will be re-created each time the command is run.
 
 # The Full auditting and update process
 
-## The audit command
+## The `audit` command
 
 This tool implements a script that summarizes the commits that need to be auditted.
 
@@ -111,7 +111,7 @@ So if you use this tool frequently, the command invocation will probably somethi
 # To gather wgpu commits to audit:
 $ moz-wgpu audit wgpu
 
-# To gather naga commits to audit:
+# To gather `naga` commits to audit:
 $ moz-wgpu audit naga
 ```
 
@@ -131,17 +131,17 @@ The output looks like this:
 
 It is a csv formatted table using tabs as separator, with columns `pull request`, `commit`, `author`, `reviewers`, `merger`, `vetted by`.
 
-This has to be appended to the wgpu-vet shared spreadsheet.
+This has to be appended to the `wgpu-vet` shared spreadsheet.
 
 ## Audit commits
 
-The script printed to stdout a csv-formatted list of commits that have to be appended to the wgpu-vet shared spreadsheet.
+The script printed to stdout a csv-formatted list of commits that have to be appended to the `wgpu-vet` shared spreadsheet.
 
 The spreadheet contains a "vetted by" column, and any commit that does not have a name in there must be audited. The spreadsheet generates links to the pull requests. Now is a good time to follow the links of whatever needs auditing, do the audit and add your name in the corresponding cell of the "vetted by" column.
 
-## Repeat the previous steps for naga
+## Repeat the previous steps for `naga`
 
-The audit command works the same way for wgpu and naga.
+The audit command works the same way for `wgpu` and `naga`.
 
 ## Prep mozilla-central
 
@@ -161,7 +161,7 @@ Go to bugzilla, file a bug, write down the bug number (in our example, it's goin
 This tool can make that a bit easier with the following command:
 
 ```bash
-$ moz-wpgu bugzilla "wgpu update (Early February 2023)"
+$ moz-wpgu bugzilla "`wgpu` update (Early February 2023)"
 ```
 
 The command above produces an url with pre-filled bugzilla entries.

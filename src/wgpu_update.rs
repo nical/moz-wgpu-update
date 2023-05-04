@@ -18,7 +18,7 @@ const COMMIT_VENDOR: Option<usize> = Some(2);
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// The new wgpu revision to update mozilla-central to.
+    /// The new `wgpu` revision to update mozilla-central to.
     #[arg(short, long)]
     git_hash: Option<String>,
 
@@ -26,7 +26,7 @@ pub struct Args {
     #[arg(short, long)]
     bug: Option<String>,
 
-    /// Detect the latest version of wgpu from local checkout.
+    /// Detect the latest version of `wgpu` from local checkout.
     #[arg(short, long)]
     auto: bool,
 
@@ -105,7 +105,7 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
     } else {
         args.git_hash
             .clone()
-            .expect("Need a wgpu revision revision")
+            .expect("Need a `wgpu` revision revision")
     };
 
     Ok(Parameters {
@@ -144,7 +144,10 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     println!("\n\nAll done!");
     if !params.build {
-        println!("Now is a good time to do a build in case there were breaking changes in wgpu-core's API.");
+        println!(
+            "Now is a good time to do a build in case there were breaking changes in `wgpu-core`'s \
+            API."
+        );
     }
 
     println!("It would also be a good idea to do a try run including the following tests:");
@@ -164,14 +167,14 @@ fn preamble(params: &Parameters) -> io::Result<()> {
     let _ = shell(&params.gecko_path, vcs, &["diff"]);
     let _ = commit(
         params,
-        "(Don't land) Uncommited changes before the wgpu update.",
+        "(Don't land) Uncommited changes before the `wgpu` update.",
         None,
     );
 
     let _ = shell(&params.gecko_path, "./mach", &["vendor", "rust"]);
     let _ = commit(
         params,
-        "(Don't land) Stray unvendored 3rd parties before the wgpu update.",
+        "(Don't land) Stray unvendored 3rd parties before the `wgpu` update.",
         None,
     );
 
@@ -200,7 +203,7 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
         Delta::new("ash"),
     ];
 
-    println!("Parsing previous crate versions from Cargo.lock");
+    println!("Parsing previous crate versions from `Cargo.lock`");
     for delta in &mut deltas[..] {
         delta.prev = cargo_lock::find_version(&delta.name, &params.gecko_path)?;
     }
@@ -238,12 +241,12 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
 
     let commit = commit(
         params,
-        &format!("Update wgpu to revision {wgpu_rev}. r=#webgpu-reviewers"),
+        &format!("Update `wgpu` to revision {wgpu_rev}. r=#webgpu-reviewers"),
         COMMIT_UPADTE,
     )?;
     assert!(commit.success());
 
-    // println!("Parsing new crate versions from Cargo.lock");
+    // println!("Parsing new crate versions from `Cargo.lock`");
     // // Parse Cargo.lock again to get the new version of the crates we are interested in (including
     // // the new versions of things we didn´t specify but wgpu depends on).
     // for delta in &mut deltas[..] {
@@ -299,11 +302,11 @@ fn parse_crate_and_version(src: &str) -> Option<(String, Version)> {
 }
 
 fn refresh_cargo_lock(gecko_path: &PathBuf, wgpu_rev: &str) {
-    println!("Refresh Cargo.lock");
-    // Run a cargo command that will cause it to pick up the new version of the crates that we
-    // updated in wgpu_bindings/Cagro.toml (and their depdendencies) and write them in Cargo.lock
-    // without trying to update unrelated crates. There may be other ways but this one appears to
-    // do what we want.
+    println!("Refresh `Cargo.lock`");
+    // Run a `cargo` command that will cause it to pick up the new version of the crates that we
+    // updated in `wgpu_bindings/Cagro.toml` (and their depdendencies) and write them in
+    // `Cargo.lock` without trying to update unrelated crates. There may be other ways but this one
+    // appears to do what we want.
     let output = read_shell(
         gecko_path,
         "cargo",
@@ -311,7 +314,7 @@ fn refresh_cargo_lock(gecko_path: &PathBuf, wgpu_rev: &str) {
     );
 
     if output.stderr.contains("object not found - no match for id") {
-        println!("Uh oh, cargo is acting up:");
+        println!("Uh oh, `cargo` is acting up:");
         println!("{}", output.stderr);
         println!(
             "I've experienced this error intermittently.\n Working around with another command...",
@@ -333,7 +336,7 @@ fn vendor_wgpu_update(params: &Parameters) -> io::Result<()> {
 
     let commit = commit(
         params,
-        "Vendor wgpu changes. r=#webgpu-reviewers",
+        "Vendor `wgpu` changes. r=#webgpu-reviewers",
         COMMIT_VENDOR,
     )?;
     assert!(commit.success());
@@ -371,7 +374,7 @@ fn vet_delta(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
 
     let commit = commit(
         params,
-        "Vet wgpu and naga commits. r=#supply-chain-reviewers",
+        "Vet `wgpu` and `naga` commits. r=#supply-chain-reviewers",
         COMMIT_AUDIT,
     )?;
     assert!(commit.success());
@@ -434,7 +437,7 @@ fn vet_from_base_revision(params: &Parameters, deltas: &[Delta]) -> io::Result<(
 
     let commit = commit(
         params,
-        "Vet wgpu and naga commits. r=#supply-chain-reviewers",
+        "Vet `wgpu` and `naga` commits. r=#supply-chain-reviewers",
         COMMIT_AUDIT,
     )?;
     assert!(commit.success());

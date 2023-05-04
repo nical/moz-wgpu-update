@@ -11,23 +11,23 @@ use std::{
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    /// The new naga revision (git hash) to update to.
+    /// The new `naga` revision (git hash) to update to.
     #[arg(short, long)]
     git_hash: Option<String>,
 
-    /// The new naga version (semver) to update to.
+    /// The new `naga` version (semver) to update to.
     #[arg(short, long)]
     semver: Option<String>,
 
-    /// Automatically determine naga's version from a local checkout.
+    /// Automatically determine `naga`'s version from a local checkout.
     #[arg(short, long)]
     auto: bool,
 
-    /// The branch name in wgpu (naga-update by default).
+    /// The branch name in `wgpu` (`naga`-update by default).
     #[arg(short, long)]
     branch: Option<String>,
 
-    /// Checkout and pull wgpu's trunk branch before creating the update branch.
+    /// Checkout and pull `wgpu`'s trunk branch before creating the update branch.
     #[arg(long)]
     on_trunk: bool,
 
@@ -44,7 +44,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
     let config = read_config_file(&args.config)?;
 
     let version = if args.auto {
-        println!("Detecting naga version from local checkout.");
+        println!("Detecting `naga` version from local checkout.");
         crate_version_from_checkout(&config.naga, true)?
     } else {
         Version {
@@ -54,7 +54,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
     };
 
     println!(
-        "Will update wgpu's naga dependency to {}",
+        "Will update `wgpu`'s `naga` dependency to {}",
         version.to_string()
     );
 
@@ -69,7 +69,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         &["commit", "-am", "Uncommitted changes before naga update."],
     )?;
 
-    // If we are already in the destination branch, switch to master so that we
+    // If we are already in the destination branch, switch to `master` so that we
     // can re-create it.
     let current_branch = read_shell(
         &config.wgpu.path,
@@ -86,7 +86,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         )?;
     }
     if current_branch.trim() == branch_name {
-        println!("Temporarily swicthing to trunk");
+        println!("Temporarily swicthing to `trunk`");
         shell(&config.wgpu.path, "git", &["checkout", "trunk"])?;
     }
 
@@ -97,7 +97,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
     let folders = &["", "wgpu-core/", "wgpu-hal/", "wgpu-types/"];
 
     // Apply changes in temporary files.
-    println!("Updating Cargo.toml files.");
+    println!("Updating `Cargo.toml` files.");
     for relative_path in folders {
         let folder = concat_path(&config.wgpu.path, relative_path);
         let cargo_toml_path = concat_path(&folder, "Cargo.toml");
@@ -124,7 +124,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     shell(&config.wgpu.path, "git", &["diff"])?;
 
-    let commit_msg = format!("Update naga to {}", version.to_string());
+    let commit_msg = format!("Update `naga` to {}", version.to_string());
     shell(&config.wgpu.path, "git", &["commit", "-am", &commit_msg])?;
 
     if args.test {
