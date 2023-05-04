@@ -18,7 +18,7 @@ const COMMIT_VENDOR: Option<usize> = Some(2);
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// The new `wgpu` revision to update mozilla-central to.
+    /// The new `wgpu` revision to update the `gecko` directory to.
     #[arg(short, long)]
     git_hash: Option<String>,
 
@@ -42,11 +42,11 @@ pub struct Args {
     #[arg(long)]
     build: bool,
 
-    /// Comma separated string of the 3 phabricator revisions (to re-generate already submitted patches).
+    /// Comma separated string of the 3 Phabricator revisions (to re-generate already submitted patches).
     #[arg(long)]
     phab_revisions: Option<String>,
 
-    /// Skip the optional steps that ensure mozilla-central is in an expected state.
+    /// Skip the optional steps that ensure that the `gecko` directory is in an expected state.
     #[arg(long)]
     skip_preamble: bool,
 }
