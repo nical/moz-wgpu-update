@@ -30,7 +30,7 @@ pub struct Args {
     #[arg(short, long)]
     auto: bool,
 
-    /// Vet from the base revision to the lastest commit instead of from commit to commit.
+    /// Vet from the base revision to the latest commit instead of from commit to commit.
     #[arg(short, long)]
     vet_from_base_revision: bool,
 
@@ -281,7 +281,7 @@ fn find_deltas(gecko_path: &PathBuf, deltas: &mut [Delta]) {
     }
 }
 
-// Parsing somehting that looks like:  {crate}:{semver}@git:{hash} missing ["safe-to-deploy"]
+// Parsing something that looks like:  {crate}:{semver}@git:{hash} missing ["safe-to-deploy"]
 fn parse_crate_and_version(src: &str) -> Option<(String, Version)> {
     let mut crate_version_hash = src.trim().split_whitespace().next()?.split("@git:");
 
@@ -304,7 +304,7 @@ fn parse_crate_and_version(src: &str) -> Option<(String, Version)> {
 fn refresh_cargo_lock(gecko_path: &PathBuf, wgpu_rev: &str) {
     println!("Refresh `Cargo.lock`");
     // Run a `cargo` command that will cause it to pick up the new version of the crates that we
-    // updated in `wgpu_bindings/Cagro.toml` (and their depdendencies) and write them in
+    // updated in `wgpu_bindings/Cargo.toml` (and their depdendencies) and write them in
     // `Cargo.lock` without trying to update unrelated crates. There may be other ways but this one
     // appears to do what we want.
     let output = read_shell(

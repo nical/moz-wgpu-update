@@ -86,7 +86,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
         )?;
     }
     if current_branch.trim() == branch_name {
-        println!("Temporarily swicthing to `trunk`");
+        println!("Temporarily switching to `trunk`");
         shell(&config.wgpu.path, "git", &["checkout", "trunk"])?;
     }
 

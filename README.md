@@ -87,13 +87,13 @@ $ moz-wpgu naga-update --auto --branch "naga-up" --test
 
 `--branch` lets you specify the branch to write the update into. This defaults to `naga-update`. Note that the branch will be re-created each time the command is run.
 
-# The Full auditting and update process
+# The full auditing and update process
 
 ## The `audit` command
 
-This tool implements a script that summarizes the commits that need to be auditted.
+This tool implements a script that summarizes the commits that need to be audited.
 
-Before running the command, you must set up a github API token so that the tool can access github's graphql API. Once you have the api token, you can add `github-api-token = "<token>"` in your config file. If you are using the `gh` command-line tool and the latter is authenticated, you can instead put `github-api-token = "gh"` in the config file and the tool will automatically request the token from `gh`.
+Before running the command, you must set up a GitHub API token so that the tool can access github's graphql API. Once you have the api token, you can add `github-api-token = "<token>"` in your config file. If you are using the `gh` command-line tool and the latter is authenticated, you can instead put `github-api-token = "gh"` in the config file and the tool will automatically request the token from `gh`.
 
 Here is an example of using the script to gather information about `wgpu` commits between specific revisions and write the output into `./wgpu-commits.csv`.
 
