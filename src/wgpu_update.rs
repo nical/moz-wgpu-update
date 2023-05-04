@@ -354,8 +354,8 @@ fn vendor_wgpu_update(params: &Parameters) -> io::Result<()> {
 fn vet_delta(params: &Parameters, deltas: &[Delta]) -> io::Result<()> {
     for delta in deltas {
         let crate_name = &delta.name;
-        let prev = delta.prev.to_string();
-        let next = delta.next.to_string();
+        let prev = delta.prev.display_cargo_vet().to_string();
+        let next = delta.next.display_cargo_vet().to_string();
         if prev == next {
             println!("{crate_name} version has not changed ({prev}).");
             continue;
@@ -397,7 +397,7 @@ fn vet_from_base_revision(params: &Parameters, deltas: &[Delta]) -> io::Result<(
         if delta.prev == delta.next {
             println!(
                 "{crate_name} version has not changed ({}).",
-                delta.prev.to_string()
+                delta.prev.display_cargo_vet()
             );
             continue;
         }
@@ -423,7 +423,7 @@ fn vet_from_base_revision(params: &Parameters, deltas: &[Delta]) -> io::Result<(
             prev = delta.next.semver.clone();
         }
 
-        let next = delta.next.to_string();
+        let next = delta.next.display_cargo_vet().to_string();
         let vet = shell(
             &params.gecko_path,
             "./mach",

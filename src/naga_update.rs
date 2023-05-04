@@ -55,7 +55,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     println!(
         "Will update `wgpu`'s `naga` dependency to {}",
-        version.to_string()
+        version.display_cargo_vet()
     );
 
     let branch_name = args.branch.clone().unwrap_or("naga-update".to_string());
@@ -124,7 +124,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
 
     shell(&config.wgpu.path, "git", &["diff"])?;
 
-    let commit_msg = format!("Update `naga` to {}", version.to_string());
+    let commit_msg = format!("Update `naga` to {}", version.display_cargo_vet());
     shell(&config.wgpu.path, "git", &["commit", "-am", &commit_msg])?;
 
     if args.test {

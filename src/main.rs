@@ -1,5 +1,3 @@
-#![allow(clippy::inherent_to_string)]
-
 mod audit;
 mod cargo_lock;
 mod cargo_toml;
@@ -10,9 +8,11 @@ mod wgpu_update;
 
 use anyhow::bail;
 use clap::Parser;
+use format::lazy_format;
 use serde_derive::{Deserialize, Serialize};
 use std::process::Command;
 use std::{
+    fmt::Display,
     fs::File,
     io::{self, Read},
     path::{Path, PathBuf},
@@ -102,12 +102,14 @@ pub struct Version {
 impl Version {
     /// The semver/git hash pair formatted in the way cargo vet expects, or just the
     /// semver string if there is no git hash.
-    pub fn to_string(&self) -> String {
-        if self.git_hash.is_empty() {
-            return self.semver.clone();
-        }
+    pub fn display_cargo_vet(&self) -> impl Display + '_ {
+        lazy_format!(|f| {
+            if self.git_hash.is_empty() {
+                return write!(f, "{}", self.semver);
+            }
 
-        format!("{}@git:{}", self.semver, self.git_hash)
+            write!(f, "{}@git:{}", self.semver, self.git_hash)
+        })
     }
 }
 
