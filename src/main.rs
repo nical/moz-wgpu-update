@@ -171,7 +171,8 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
     } else if let Some(in_home) = in_home {
         File::open(&in_home).ok().unwrap_or_else(|| {
             panic!(
-                "Could not find config file. Searched locations \n{in_current_dir:?}\n{in_home:?}"
+                "Could not find config file. Searched locations {:#?}",
+                [&in_current_dir, &in_home],
             );
         })
     } else {
