@@ -152,8 +152,8 @@ pub fn update_command(args: &Args) -> io::Result<()> {
     println!("\n\nAll done!");
     if !params.build {
         println!(
-            "Now is a good time to do a build in case there were breaking changes in `wgpu-core`'s \
-            API."
+            "Now is a good time to do a `./mach build` in case there were breaking changes in \
+            `wgpu-core`'s API."
         );
     }
 
