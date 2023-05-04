@@ -8,6 +8,7 @@ mod moz_yaml;
 mod naga_update;
 mod wgpu_update;
 
+use anyhow::bail;
 use clap::Parser;
 use serde_derive::{Deserialize, Serialize};
 use std::process::Command;
@@ -16,6 +17,7 @@ use std::{
     io::{self, Read},
     path::{Path, PathBuf},
     process::ExitStatus,
+    str::FromStr,
 };
 
 #[derive(Parser, Debug)]
@@ -72,23 +74,21 @@ fn default_remote() -> String {
     "upstream".into()
 }
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub enum Vcs {
+    #[default]
     Mercurial,
     Git,
 }
 
-impl Vcs {
-    pub fn new(string: &Option<String>) -> Self {
-        let vcs_str = string
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or("hg")
-            .to_lowercase();
-        match vcs_str.as_str() {
-            "hg" | "mercurial" => Vcs::Mercurial,
-            "git" => Vcs::Git,
-            _ => panic!("Unsupported version control system {vcs_str:?}"),
+impl FromStr for Vcs {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "hg" | "mercurial" => Ok(Vcs::Mercurial),
+            "git" => Ok(Vcs::Git),
+            _ => bail!("Unsupported version control system {s:?}"),
         }
     }
 }

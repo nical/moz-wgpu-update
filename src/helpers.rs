@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, str::FromStr};
 
 use crate::{read_config_file, shell, Vcs};
 
@@ -58,7 +58,14 @@ pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
 pub fn hg_histedit() -> io::Result<()> {
     let config = read_config_file(&None)?;
 
-    match Vcs::new(&config.gecko.vcs) {
+    match config
+        .gecko
+        .vcs
+        .as_deref()
+        .map(Vcs::from_str)
+        .unwrap()
+        .unwrap_or_default()
+    {
         Vcs::Mercurial => shell(&config.gecko.path, "hg", &["histedit"])?,
         Vcs::Git => shell(&config.gecko.path, "git", &["rebasse", "-i", "central"])?,
     };

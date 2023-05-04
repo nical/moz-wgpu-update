@@ -8,6 +8,7 @@ use std::{
     io::{self, BufWriter},
     path::PathBuf,
     process::ExitStatus,
+    str::FromStr,
 };
 
 // The order of the 3 gecko commits.
@@ -112,7 +113,13 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
         wgpu_rev,
         bug: args.bug.clone(),
         gecko_path: config.gecko.path.clone(),
-        vcs: Vcs::new(&config.gecko.vcs),
+        vcs: config
+            .gecko
+            .vcs
+            .as_deref()
+            .map(Vcs::from_str)
+            .unwrap()
+            .unwrap_or_default(),
         phab_revisions,
         build: args.build,
         preamble: !args.skip_preamble,
