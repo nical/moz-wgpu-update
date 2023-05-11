@@ -11,6 +11,7 @@ use clap::Parser;
 use format::lazy_format;
 use serde_derive::{Deserialize, Serialize};
 use std::{
+    env::{current_dir, set_current_dir},
     fmt::Display,
     fs::File,
     io::{self, Read},
@@ -187,6 +188,8 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
 }
 
 fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
+    let old_cwd = current_dir().unwrap();
+    set_current_dir(directory).unwrap();
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
@@ -194,7 +197,9 @@ fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
     }
     println!(" -- Running {cmd_str:?}");
 
-    Command::new(cmd).args(args).current_dir(directory).status()
+    let status = Command::new(cmd).args(args).current_dir(directory).status();
+    set_current_dir(old_cwd).unwrap();
+    status
 }
 
 pub struct ShellOutput {
@@ -207,6 +212,8 @@ pub struct ShellOutput {
 /// Note that the resulting string will likely have a \n at the end, even
 /// if only one line was written.
 fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> ShellOutput {
+    let old_cwd = current_dir().unwrap();
+    set_current_dir(directory).unwrap();
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
@@ -219,6 +226,7 @@ fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> ShellOutput {
         .current_dir(directory)
         .output()
         .unwrap();
+    set_current_dir(old_cwd).unwrap();
 
     ShellOutput {
         stdout: String::from_utf8(output.stdout).unwrap(),
