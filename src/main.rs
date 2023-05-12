@@ -1,32 +1,39 @@
-#![allow(clippy::inherent_to_string)]
-
-mod cargo_toml;
-mod moz_yaml;
-mod cargo_lock;
-mod wgpu_update;
-mod naga_update;
-mod helpers;
 mod audit;
+mod cargo_lock;
+mod cargo_toml;
+mod helpers;
+mod moz_yaml;
+mod naga_update;
+mod wgpu_update;
 
-use std::{path::{Path, PathBuf}, fs::File, io::{self, Read}, process::ExitStatus};
-use std::process::Command;
+use anyhow::bail;
 use clap::Parser;
-use serde_derive::{Serialize, Deserialize};
+use format::lazy_format;
+use serde_derive::{Deserialize, Serialize};
+use std::{
+    env::{current_dir, set_current_dir},
+    fmt::Display,
+    fs::File,
+    io::{self, Read},
+    path::{Path, PathBuf},
+    process::{Command, ExitStatus},
+    str::FromStr,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub enum Args {
-    /// Update wgpu in mozilla-central.
+    /// Update `wgpu` in the `gecko` directory.
     WgpuUpdate(wgpu_update::Args),
-    /// Update naga in wgpu.
+    /// Update `naga` in `wgpu`.
     NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
     /// List commits to audit.
     Audit(audit::AuditArgs),
-    /// Run a mach command in the mozilla-central directory.
+    /// Run a `mach` command in the `gecko` directory.
     Mach(helpers::MachArgs),
-    /// Run `hg histedit` in mozilla-central.
+    /// Run `hg histedit` in the `gecko` directory.
     Histedit,
     /// Push a try run to Firefox's CI.
     Try,
@@ -67,19 +74,21 @@ fn default_remote() -> String {
     "upstream".into()
 }
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub enum Vcs {
+    #[default]
     Mercurial,
     Git,
 }
 
-impl Vcs {
-    pub fn new(string: &Option<String>) -> Self {
-        let vcs_str = string.as_ref().map(String::as_str).unwrap_or("hg").to_lowercase();
-        match vcs_str.as_str() {
-            "hg" | "mercurial" => Vcs::Mercurial,
-            "git" => Vcs::Git,
-            _ => panic!("Unsupported version control system {vcs_str:?}")
+impl FromStr for Vcs {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "hg" | "mercurial" => Ok(Vcs::Mercurial),
+            "git" => Ok(Vcs::Git),
+            _ => bail!("Unsupported version control system {s:?}"),
         }
     }
 }
@@ -93,18 +102,68 @@ pub struct Version {
 impl Version {
     /// The semver/git hash pair formatted in the way cargo vet expects, or just the
     /// semver string if there is no git hash.
-    pub fn to_string(&self) -> String {
-        if self.git_hash.is_empty() {
-            return self.semver.clone()
+    pub fn display_cargo_vet(&self) -> impl Display + '_ {
+        lazy_format!(|f| {
+            if self.git_hash.is_empty() {
+                return write!(f, "{}", self.semver);
+            }
+
+            write!(f, "{}@git:{}", self.semver, self.git_hash)
+        })
+    }
+
+    fn from_git_checkout(project: &GithubProject, pull: bool) -> io::Result<Self> {
+        println!("Detecting crate version from local checkout.");
+        let current_branch =
+            read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
+        let current_branch = current_branch.trim();
+
+        let upstream = &project.upstream_remote;
+        let main_branch = &&project.main_branch;
+
+        if pull {
+            // Temporarily switch to the main branch.
+            shell(
+                &project.path,
+                "git",
+                &["commit", "-am", "Uncommitted changes before update."],
+            )?;
+            shell(&project.path, "git", &["checkout", main_branch])?;
+            shell(
+                &project.path,
+                "git",
+                &["pull", &project.upstream_remote, main_branch],
+            )?;
         }
 
-        format!("{}@git:{}", self.semver, self.git_hash)
+        let git_hash = read_shell(
+            &project.path,
+            "git",
+            &["rev-parse", &format!("{upstream}/{main_branch}")],
+        )
+        .stdout
+        .trim()
+        .to_string();
+
+        let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
+        let reader = io::BufReader::new(File::open(cargo_toml_path)?);
+        let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
+
+        if pull {
+            // Switch back to the previous branch.
+            shell(&project.path, "git", &["checkout", current_branch])?;
+        }
+
+        Ok(Self { semver, git_hash })
     }
 }
 
 fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
     let in_current_dir = PathBuf::from("./.moz-wgpu.toml");
-    let in_home = dirs::home_dir().map(|mut path| { path.push(".moz-wgpu.toml"); path });
+    let in_home = dirs::home_dir().map(|mut path| {
+        path.push(".moz-wgpu.toml");
+        path
+    });
 
     let mut config_file = if let Some(path) = path {
         File::open(path)?
@@ -112,7 +171,10 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
         file
     } else if let Some(in_home) = in_home {
         File::open(&in_home).ok().unwrap_or_else(|| {
-            panic!("Could not find config file. Seached locations \n{in_current_dir:?}\n{in_home:?}");
+            panic!(
+                "Could not find config file. Searched locations {:#?}",
+                [&in_current_dir, &in_home],
+            );
         })
     } else {
         panic!();
@@ -126,6 +188,8 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
 }
 
 fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
+    let old_cwd = current_dir().unwrap();
+    set_current_dir(directory).unwrap();
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
@@ -133,7 +197,9 @@ fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
     }
     println!(" -- Running {cmd_str:?}");
 
-    Command::new(cmd).args(args).current_dir(directory).status()
+    let status = Command::new(cmd).args(args).current_dir(directory).status();
+    set_current_dir(old_cwd).unwrap();
+    status
 }
 
 pub struct ShellOutput {
@@ -146,6 +212,8 @@ pub struct ShellOutput {
 /// Note that the resulting string will likely have a \n at the end, even
 /// if only one line was written.
 fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> ShellOutput {
+    let old_cwd = current_dir().unwrap();
+    set_current_dir(directory).unwrap();
     let mut cmd_str = format!("{cmd} ");
     for arg in args {
         cmd_str.push_str(arg);
@@ -158,6 +226,7 @@ fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> ShellOutput {
         .current_dir(directory)
         .output()
         .unwrap();
+    set_current_dir(old_cwd).unwrap();
 
     ShellOutput {
         stdout: String::from_utf8(output.stdout).unwrap(),
@@ -172,35 +241,6 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
     }
 
     path
-}
-
-fn crate_version_from_checkout(project: &GithubProject, pull: bool) -> io::Result<Version> {
-    println!("Detecting crate version from local checkout.");
-    let current_branch = read_shell(&project.path, "git", &["rev-parse", "--abbrev-ref", "HEAD"]).stdout;
-    let current_branch = current_branch.trim();
-
-    let upstream = &project.upstream_remote;
-    let main_branch = &&project.main_branch;
-
-    if pull {
-        // Temporarily switch to the main branch.
-        shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before update."])?;
-        shell(&project.path, "git", &["checkout", main_branch])?;
-        shell(&project.path, "git", &["pull", &project.upstream_remote, main_branch])?;
-    }
-
-    let git_hash = read_shell(&project.path, "git", &["rev-parse", &format!("{upstream}/{main_branch}")]).stdout.trim().to_string();
-
-    let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
-    let reader = io::BufReader::new(File::open(cargo_toml_path)?);
-    let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
-
-    if pull {
-        // Switch back to the previous branch.
-        shell(&project.path, "git", &["checkout", current_branch])?;
-    }
-
-    Ok(Version { semver, git_hash })
 }
 
 fn main() -> io::Result<()> {

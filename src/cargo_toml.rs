@@ -1,4 +1,4 @@
-use std::io::{self, Read, Write, BufRead};
+use std::io::{self, BufRead, Read, Write};
 
 use crate::Version;
 
@@ -32,7 +32,9 @@ pub fn update_cargo_toml<In: Read, Out: Write>(
 
         let tokens = tokenize(&line);
 
-        if let Some(package_name) = parse_package_name(tokens.clone()).or_else(|| parse_git(tokens.clone())) {
+        if let Some(package_name) =
+            parse_package_name(tokens.clone()).or_else(|| parse_git(tokens.clone()))
+        {
             if saw_rev {
                 eprintln!("Warning: found the package name or url after the revision or version, updates may have been missed.");
             }
@@ -70,11 +72,12 @@ fn tokenize(src: &str) -> impl Iterator<Item = &str> + Clone {
     trimmed.split_ascii_whitespace()
 }
 
-fn parse_string_attribute<'a, 'b>(mut src: impl Iterator<Item = &'a str>, attrib_name: &'b str) -> Option<&'a str> {
+fn parse_string_attribute<'a, 'b>(
+    mut src: impl Iterator<Item = &'a str>,
+    attrib_name: &'b str,
+) -> Option<&'a str> {
     if src.next() == Some(attrib_name) && src.next() == Some("=") {
-        let name = src.next()?
-            .strip_prefix('"')?
-            .strip_suffix('"')?;
+        let name = src.next()?.strip_prefix('"')?.strip_suffix('"')?;
         return Some(name);
     }
 
@@ -97,7 +100,10 @@ fn parse_git<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
     parse_string_attribute(src, "git")
 }
 
-pub fn get_package_attribute<In: Read>(input: io::BufReader<In>, key: &str) -> io::Result<Option<String>> {
+pub fn get_package_attribute<In: Read>(
+    input: io::BufReader<In>,
+    key: &str,
+) -> io::Result<Option<String>> {
     let mut in_package = false;
 
     for line in input.lines() {

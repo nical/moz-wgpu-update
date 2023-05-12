@@ -1,7 +1,7 @@
-use std::{io, path::PathBuf};
 use clap::Parser;
+use std::{io, path::PathBuf, str::FromStr};
 
-use crate::{Vcs, read_config_file, shell};
+use crate::{read_config_file, shell, Vcs};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -10,7 +10,7 @@ pub struct BugzillaArgs {
 
     /// Open the bugzilla url in firefox.
     #[arg(short, long)]
-    open: bool
+    open: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -18,7 +18,6 @@ pub struct BugzillaArgs {
 pub struct MachArgs {
     command: Vec<String>,
 }
-
 
 pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
     let mut url = "https://bugzilla.mozilla.org/enter_bug.cgi?".to_string();
@@ -59,9 +58,16 @@ pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
 pub fn hg_histedit() -> io::Result<()> {
     let config = read_config_file(&None)?;
 
-    match Vcs::new(&config.gecko.vcs) {
+    match config
+        .gecko
+        .vcs
+        .as_deref()
+        .map(Vcs::from_str)
+        .unwrap()
+        .unwrap_or_default()
+    {
         Vcs::Mercurial => shell(&config.gecko.path, "hg", &["histedit"])?,
-        Vcs::Git =>  shell(&config.gecko.path, "git", &["rebasse", "-i", "central"])?,
+        Vcs::Git => shell(&config.gecko.path, "git", &["rebasse", "-i", "central"])?,
     };
 
     Ok(())
@@ -85,4 +91,3 @@ pub fn push_to_try() -> io::Result<()> {
 
     Ok(())
 }
-

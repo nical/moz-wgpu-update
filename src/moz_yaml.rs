@@ -1,11 +1,10 @@
-use std::io::{self, Read, Write, BufRead};
+use std::io::{self, BufRead, Read, Write};
 
 pub fn update_moz_yaml<In: Read, Out: Write>(
     input: io::BufReader<In>,
     mut output: Out,
     updates: &[(&str, &str)],
 ) -> io::Result<()> {
-
     let mut saw_rev_or_release = false;
     let mut new_revision = None;
     let mut prev_indent = String::new();
@@ -33,12 +32,18 @@ pub fn update_moz_yaml<In: Read, Out: Write>(
                     }
                 }
                 ("revision", Some(new_rev)) => {
-                    writeln!(output, "{indent}revision: {new_rev}{space_before_comment}{comment}")?;
+                    writeln!(
+                        output,
+                        "{indent}revision: {new_rev}{space_before_comment}{comment}"
+                    )?;
                     saw_rev_or_release = true;
                     continue;
                 }
                 ("release", Some(new_rev)) => {
-                    writeln!(output, "{indent}release: commit {new_rev}{space_before_comment}{comment}")?;
+                    writeln!(
+                        output,
+                        "{indent}release: commit {new_rev}{space_before_comment}{comment}"
+                    )?;
                     saw_rev_or_release = true;
                     continue;
                 }
@@ -78,7 +83,7 @@ fn parse_line(src: &str) -> Option<(&str, &str, &str, &str)> {
     let s = src.find(':')?;
 
     let key = src[..s].trim();
-    let value = src[(s+1)..].trim();
+    let value = src[(s + 1)..].trim();
 
     Some((indentation, key, value, comment))
 }

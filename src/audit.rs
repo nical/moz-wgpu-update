@@ -1,8 +1,19 @@
-use core::panic;
-use std::{io::{self, Read, BufWriter, Write}, path::{Path, PathBuf}, fs::File, sync::Arc};
+use crate::{read_config_file, read_shell, shell};
 use clap::Parser;
-use octocrab::{Octocrab, models::{pulls::{ReviewState, PullRequest}, IssueState}};
-use crate::{shell, read_shell, read_config_file};
+use core::panic;
+use octocrab::{
+    models::{
+        pulls::{PullRequest, ReviewState},
+        IssueState,
+    },
+    Octocrab,
+};
+use std::{
+    fs::File,
+    io::{self, BufWriter, Read, Write},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 #[derive(Parser, Debug)]
 pub struct AuditArgs {
@@ -40,7 +51,10 @@ impl Github {
             // The config file contains either the token token itself or the string "gh" which signifies
             // use the gh command-line app to get the token.
             let token = match &api_token[..] {
-                "gh" => read_shell(&PathBuf::from("."), "gh", &["auth", "token"]).stdout.trim().to_string(),
+                "gh" => read_shell(&PathBuf::from("."), "gh", &["auth", "token"])
+                    .stdout
+                    .trim()
+                    .to_string(),
                 token => token.to_string(),
             };
 
@@ -54,7 +68,7 @@ impl Github {
                 .build()?,
             api: Arc::new(api.build().unwrap()),
             org: "gfx-rs".to_string(),
-            project: project.to_string()
+            project: project.to_string(),
         })
     }
 }
@@ -77,11 +91,11 @@ fn git_rev_list(path: &Path, from: &str, to: &str) -> io::Result<Vec<String>> {
 }
 
 pub fn read_latest_audit(path: &Path) -> io::Result<String> {
-    let mut  file = File::open(path)?;
+    let mut file = File::open(path)?;
     let mut result = String::new();
 
     file.read_to_string(&mut result)?;
-    
+
     Ok(result.trim().to_string())
 }
 
@@ -100,16 +114,20 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let project = match args.project.as_str() {
         "wgpu" => &config.wgpu,
         "naga" => &config.naga,
-        other => { panic!("Unknown project {other:?}"); }
+        other => {
+            panic!("Unknown project {other:?}");
+        }
     };
 
-    let latest_commit_path = project.latest_commit.clone().unwrap_or_else(|| {
-        PathBuf::from("./latest-commit.txt")
-    });
+    let latest_commit_path = project
+        .latest_commit
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("./latest-commit.txt"));
 
-    let start_commit = args.from.clone().unwrap_or_else(|| {
-        read_latest_audit(&latest_commit_path).unwrap()
-    });
+    let start_commit = args
+        .from
+        .clone()
+        .unwrap_or_else(|| read_latest_audit(&latest_commit_path).unwrap());
 
     let end_commit = args.to.clone().unwrap_or_else(|| "HEAD".to_string());
 
@@ -117,9 +135,21 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
     if args.pull {
         let upstream = &project.upstream_remote;
-        shell(&project.path, "git", &["commit", "-am", "Uncommitted changes before running moz-wgpu audit"])?;
+        shell(
+            &project.path,
+            "git",
+            &[
+                "commit",
+                "-am",
+                "Uncommitted changes before running `moz-wgpu audit`",
+            ],
+        )?;
         shell(&project.path, "git", &["checkout", &project.main_branch])?;
-        shell(&project.path, "git", &["pull", upstream, &project.main_branch])?;
+        shell(
+            &project.path,
+            "git",
+            &["pull", upstream, &project.main_branch],
+        )?;
     }
 
     let rev_list = git_rev_list(&project.path, &start_commit, &end_commit)?;
@@ -154,7 +184,11 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
             found_at_least_one_pr = true;
             let author = pull.user.clone().map(|user| user.login).unwrap_or_default();
 
-            println!("Pull #{} by {author} - {:?}", pull.number, pull.title.clone().unwrap_or_default());
+            println!(
+                "Pull #{} by {author} - {:?}",
+                pull.number,
+                pull.title.clone().unwrap_or_default()
+            );
 
             let mut commit = Commit {
                 pull_request: Some(pull.number),
@@ -171,7 +205,11 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
                 }
             }
 
-            maybe_add_vetter(&mut commit.vetted_by, &project.trusted_reviewers, &commit.author);
+            maybe_add_vetter(
+                &mut commit.vetted_by,
+                &project.trusted_reviewers,
+                &commit.author,
+            );
             for reviewer in &commit.reviewers {
                 maybe_add_vetter(&mut commit.vetted_by, &project.trusted_reviewers, reviewer);
             }
@@ -205,29 +243,47 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
 fn pull_requests_for_commit(github: &Github, commit: &str) -> Vec<PullRequest> {
     let request = github.runtime.block_on(
-        github.api.repos("gfx-rs", &github.project).list_pulls(commit.to_string()).send()
+        github
+            .api
+            .repos("gfx-rs", &github.project)
+            .list_pulls(commit.to_string())
+            .send(),
     );
 
-    request.map(|pulls| {
-        pulls.items
-            .into_iter()
-            .filter(|pull| pull.state == Some(IssueState::Closed))
-            .collect()
-    }).unwrap_or_default()
+    request
+        .map(|pulls| {
+            pulls
+                .items
+                .into_iter()
+                .filter(|pull| pull.state == Some(IssueState::Closed))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn reviewers_for_pull_request(github: &Github, pr: u64) -> Vec<String> {
     let request = github.runtime.block_on(
-        github.api.pulls(&github.org, &github.project).list_reviews(pr)
+        github
+            .api
+            .pulls(&github.org, &github.project)
+            .list_reviews(pr),
     );
 
     let mut reviewers = Vec::new();
     if let Ok(reviews) = request {
-        for reviewer in reviews.items.iter()
+        for reviewer in reviews
+            .items
+            .iter()
             .filter(|review| review.state == Some(ReviewState::Approved))
-            .map(|review| review.user.as_ref().map(|user| user.login.clone()).unwrap_or(String::new()))
-            .filter(|user_name| !user_name.is_empty()) {
-
+            .map(|review| {
+                review
+                    .user
+                    .as_ref()
+                    .map(|user| user.login.clone())
+                    .unwrap_or(String::new())
+            })
+            .filter(|user_name| !user_name.is_empty())
+        {
             reviewers.push(reviewer)
         }
     }
@@ -241,7 +297,8 @@ fn merger_for_pull_request(github: &Github, pr_idx: u64) -> Option<String> {
 
     // Could not find how to get a PR's merger from octocrab, so we'query it directly
     // via graphql.
-    let query = format!("
+    let query = format!(
+        "
         query {{
             repository(owner:{org:?}, name:{project:?}) {{
                 pullRequest(number:{pr_idx}) {{ mergedBy {{ login }} }}
@@ -255,7 +312,8 @@ fn merger_for_pull_request(github: &Github, pr_idx: u64) -> Option<String> {
 
     let response: serde_json::Value = github.runtime.block_on(github.api.graphql(&query)).unwrap();
 
-    let merger = response.get("data")?
+    let merger = response
+        .get("data")?
         .get("repository")?
         .get("pullRequest")?
         .get("mergedBy")?
@@ -282,7 +340,9 @@ fn comma_separated_string(items: &[String]) -> String {
 
 fn write_csv_output(items: &[Commit], output: &Option<PathBuf>) -> io::Result<()> {
     let mut stdout = std::io::stdout();
-    let mut output_file = output.as_ref().map(|path| BufWriter::new(File::create(path).unwrap()));
+    let mut output_file = output
+        .as_ref()
+        .map(|path| BufWriter::new(File::create(path).unwrap()));
 
     let writer = if let Some(file) = &mut output_file {
         file as &mut dyn Write
@@ -292,8 +352,13 @@ fn write_csv_output(items: &[Commit], output: &Option<PathBuf>) -> io::Result<()
     };
 
     for item in items {
-        let pull_request = item.pull_request.map(|num| format!("{num}")).unwrap_or_default();
-        writeln!(writer, "{}\t{}\t{}\t{}\t{}\t{}",
+        let pull_request = item
+            .pull_request
+            .map(|num| format!("{num}"))
+            .unwrap_or_default();
+        writeln!(
+            writer,
+            "{}\t{}\t{}\t{}\t{}\t{}",
             pull_request,
             item.hash,
             item.author,
