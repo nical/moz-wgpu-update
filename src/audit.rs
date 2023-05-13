@@ -222,7 +222,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     }
 
     if !found_at_least_one_pr {
-        println!("");
+        println!();
         println!("Now that's odd. We found commits locally via git rev-list but we couldn't get pull requests from the web API.");
         println!("This could mean:");
         println!(" - That commits have been merged without pull requests.");
