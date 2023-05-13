@@ -11,17 +11,26 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: Swatinem/rust-cache@v2.2.1
+    - name: Build
+      run: cargo fmt --all -- --check
   build:
     runs-on: ubuntu-latest
     steps:
+    - uses: olix0r/cargo-action-fmt/setup@v2
     - uses: actions/checkout@v3
     - uses: Swatinem/rust-cache@v2.2.1
     - name: Build
-      run: cargo build --verbose
+      run: cargo build -q --message-format=json | cargo-action-fmt
   clippy:
     runs-on: ubuntu-latest
     steps:
+    - uses: olix0r/cargo-action-fmt/setup@v2
     - uses: actions/checkout@v3
     - uses: Swatinem/rust-cache@v2.2.1
     - name: Build
-      run: cargo clippy
+      run: cargo clippy -q --message-format=json | cargo-action-fmt
