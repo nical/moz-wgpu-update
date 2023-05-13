@@ -6,7 +6,7 @@ use clap::Parser;
 use std::{
     fs::File,
     io::{self, BufWriter},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitStatus,
     str::FromStr,
 };
@@ -263,7 +263,7 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
     Ok(deltas)
 }
 
-fn find_deltas(gecko_path: &PathBuf, deltas: &mut [Delta]) {
+fn find_deltas(gecko_path: &Path, deltas: &mut [Delta]) {
     let output = read_shell(gecko_path, "./mach", &["cargo", "vet"]);
 
     for line in output.stdout.lines() {
@@ -288,7 +288,7 @@ fn find_deltas(gecko_path: &PathBuf, deltas: &mut [Delta]) {
 
 // Parsing something that looks like:  {crate}:{semver}@git:{hash} missing ["safe-to-deploy"]
 fn parse_crate_and_version(src: &str) -> Option<(String, Version)> {
-    let mut crate_version_hash = src.trim().split_whitespace().next()?.split("@git:");
+    let mut crate_version_hash = src.split_whitespace().next()?.split("@git:");
 
     let crate_version = crate_version_hash.next().unwrap();
     let git_hash = crate_version_hash
@@ -306,7 +306,7 @@ fn parse_crate_and_version(src: &str) -> Option<(String, Version)> {
     Some((name, Version { semver, git_hash }))
 }
 
-fn refresh_cargo_lock(gecko_path: &PathBuf, wgpu_rev: &str) {
+fn refresh_cargo_lock(gecko_path: &Path, wgpu_rev: &str) {
     println!("Refresh `Cargo.lock`");
     // Run a `cargo` command that will cause it to pick up the new version of the crates that we
     // updated in `wgpu_bindings/Cargo.toml` (and their depdendencies) and write them in
