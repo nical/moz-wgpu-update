@@ -170,7 +170,7 @@ Adding `--open` directly opens the url with firefox.
 
 ## Run this tool
 
-Copy the hash that was printed to stdout at the end of the previous step with jim's scripts (in the previous example it was `41de797c745d317e93b9cf50e7446faff7f65954`) as well as the bug number (example `1813547`) and use it as input for this tool.
+Copy the hash that was printed to stdout at the end of the previous step with Jim's scripts (in the previous example it was `41de797c745d317e93b9cf50e7446faff7f65954`) as well as the bug number (example `1813547`) and use it as input for this tool.
 
 ```bash
 $ cd path/to/this/repository
@@ -190,6 +190,72 @@ At the end, the tool printed a few instructions, typically the two tests to not 
 ```bash
 $ cd /path/to/mozilla-central
 $ hg wip # check that the commits are there
+```
+
+## Prune audits
+
+The above process will add entries to `supply-chain/audits.toml` that may be
+redundant. Until `cargo vet` is adjusted, they should be manually removed.
+
+For example, suppose `audits.toml` contains the following entries for the `naga`
+crate:
+
+```
+[[audits.naga]]
+criteria = "safe-to-deploy"
+version = "0.8.0"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.8.0 -> 0.9.0"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.9.0 -> 0.10.0"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.10.0 -> 0.10.0@git:e98bd9264c3a6b04dff15a6b1213c0c80201740a"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.10.0@git:1be8024bda3594987b417bead5024b98be9ab521 -> 0.11.0@git:f0edae8ce9e55eeef489fc53b10dc95fb79561cc"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.10.0@git:e98bd9264c3a6b04dff15a6b1213c0c80201740a -> 0.10.0@git:1be8024bda3594987b417bead5024b98be9ab521"
+```
+
+These entries are not all in chronological order, but if you look at the commit
+hashes, you can follow the chain from the first audit of `0.8.0` to
+`0.11.0@git:f0edae8c`.
+
+However, audits of unreleased commits are unlikely to be valuable to anyone
+outside of Mozilla. And because we update the version of `wgpu` and its related
+crates so frequently, adding an audit entry for each import will clutter
+`audits.toml` with useless information.
+
+To avoid this, we adopt the rule that, while delta audits from one release to
+another should always be retained, `audits.toml` should have at most one delta
+entry from a released version of a given crate to a Git commit. This means that
+the above should be reduced to:
+
+```
+[[audits.naga]]
+criteria = "safe-to-deploy"
+version = "0.8.0"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.8.0 -> 0.9.0"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.9.0 -> 0.10.0"
+
+[[audits.naga]]
+criteria = "safe-to-deploy"
+delta = "0.10.0 -> 0.11.0@git:f0edae8ce9e55eeef489fc53b10dc95fb79561cc"
 ```
 
 ## Build firefox
