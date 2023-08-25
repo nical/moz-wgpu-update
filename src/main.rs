@@ -16,7 +16,7 @@ use std::{
     fs::File,
     io::{self, Read},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    process::{Command, ExitStatus, Stdio},
     str::FromStr,
 };
 
@@ -197,7 +197,12 @@ fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
     }
     println!(" -- Running {cmd_str:?}");
 
-    let status = Command::new(cmd).args(args).current_dir(directory).status();
+    let status = Command::new(cmd)
+        .args(args)
+        .current_dir(directory)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status();
     set_current_dir(old_cwd).unwrap();
     status
 }
