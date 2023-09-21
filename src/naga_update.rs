@@ -1,4 +1,4 @@
-use crate::{cargo_toml, concat_path, read_config_file, read_shell, shell, Version};
+use crate::{cargo_toml, concat_path, read_config_file, read_shell, shell, Version, DEFAULT_NAGA_REPOSITORY};
 use clap::Parser;
 use std::{
     fs::File,
@@ -105,6 +105,7 @@ pub fn update_command(args: &Args) -> io::Result<()> {
             io::BufReader::new(File::open(cargo_toml_path.clone())?),
             BufWriter::new(File::create(tmp_cargo_toml_path.clone())?),
             &[("naga", &version)],
+            DEFAULT_NAGA_REPOSITORY,
         )?;
     }
 

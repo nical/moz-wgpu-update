@@ -277,3 +277,33 @@ You could fold these fixes into the commit `Bug 1813547 - Update wgpu to revisio
 ## Submit the changes for review, wait for the review and land them
 
 The usual patch landing process (typically takes a day to get the reviews if you ask for it in the team's matrix channel).
+
+# Testing a branch from a wgpu fork
+
+The script has some limited support for letting the wgpu-update commands point to a fork of the wgpu repository for testing purposes.
+Here is an example showing how to get gecko to point to a specific commit from the `master` branch of `https://github.com/gents83/wgpu`, which at the time of writing contains the very anticipated wgpu arcanization work.
+
+First clone the fork soemwhere (let's say at `/path/to/local/arcanization/`).
+
+First make a copy of your config file.
+
+```bash
+cp ~/.moz-wgpu.toml ./arcanization.toml
+```
+
+Then make a few changes to wgpu entry in the new `arcanization.toml` configuration file:
+
+```toml
+[wgpu]
+path = "/path/to/local/arcanization/"
+repository = "https://github.com/gents83/wgpu"
+main-branch = "master"
+```
+
+Leave all other entries of the configuration file untouched.
+
+Then run the script, instructing it to use the new config file instead of the default one:
+
+```bash
+moz-wgpu wgpu-update --config ./arcanization.toml -g d1fe60c955111cc1dd637339a8fb88b1838fc423 --skip-preamble
+```

@@ -20,6 +20,9 @@ use std::{
     str::FromStr,
 };
 
+const DEFAULT_WGPU_REPOSITORY: &'static str = "https://github.com/gfx-rs/wgpu";
+const DEFAULT_NAGA_REPOSITORY: &'static str = "https://github.com/gfx-rs/naga";
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub enum Args {
@@ -64,6 +67,10 @@ pub struct GithubProject {
     upstream_remote: String,
     trusted_reviewers: Vec<String>,
     latest_commit: Option<PathBuf>,
+    // This parameter allows the wgpu-update command to override the wgpu repository url and
+    // point to a wgpu fork (typically for testing purposes).
+    // For regular use cases it is fine to let it unset by default.
+    repository: Option<String>,
 }
 
 fn default_branch() -> String {

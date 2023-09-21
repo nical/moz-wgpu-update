@@ -1,6 +1,6 @@
 use crate::{
     cargo_lock, cargo_toml, concat_path, moz_yaml, read_config_file, read_shell, shell, Vcs,
-    Version,
+    Version, DEFAULT_WGPU_REPOSITORY,
 };
 use clap::Parser;
 use std::{
@@ -60,6 +60,7 @@ pub struct Parameters {
     gecko_path: PathBuf,
     vcs: Vcs,
     phab_revisions: Option<[String; 3]>,
+    repository: String,
     preamble: bool,
     build: bool,
 }
@@ -109,6 +110,10 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
             .expect("Need a `wgpu` revision revision")
     };
 
+    let repository = config.wgpu.repository
+        .clone()
+        .unwrap_or_else(|| DEFAULT_WGPU_REPOSITORY.into());
+
     Ok(Parameters {
         wgpu_rev,
         bug: args.bug.clone(),
@@ -121,6 +126,7 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
             .unwrap()
             .unwrap_or_default(),
         phab_revisions,
+        repository,
         build: args.build,
         preamble: !args.skip_preamble,
     })
@@ -197,7 +203,7 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
     cargo_toml_path.push("Cargo.toml");
     tmp_cargo_toml_path.push("tmp.Cargo.toml");
 
-    let wgpu_url = "https://github.com/gfx-rs/wgpu";
+    let wgpu_url = &params.repository;
 
     let mut deltas = vec![
         Delta::new("wgpu-core"),
@@ -218,12 +224,13 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
         io::BufReader::new(File::open(cargo_toml_path.clone())?),
         BufWriter::new(File::create(tmp_cargo_toml_path.clone())?),
         &[(
-            wgpu_url,
+            DEFAULT_WGPU_REPOSITORY,
             &Version {
                 semver: String::new(),
                 git_hash: wgpu_rev.to_string(),
             },
         )],
+        wgpu_url,
     )?;
 
     let mut moz_yaml_path = bindings_path.clone();

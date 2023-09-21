@@ -6,6 +6,7 @@ pub fn update_cargo_toml<In: Read, Out: Write>(
     input: io::BufReader<In>,
     mut output: Out,
     updates: &[(&str, &Version)],
+    override_repository: &str,
 ) -> io::Result<()> {
     //let mut group = String::new();
     let mut new_revision = None;
@@ -48,6 +49,11 @@ pub fn update_cargo_toml<In: Read, Out: Write>(
         }
 
         if let Some(Version { git_hash, semver }) = new_revision {
+            if parse_git(tokens.clone()).map(|url| url.contains("wgpu")).unwrap_or(false) {
+                writeln!(output, "git = \"{override_repository}\"")?;
+                continue;
+            }
+
             if !git_hash.is_empty() && parse_rev(tokens.clone()).is_some() {
                 saw_rev = true;
                 writeln!(output, "rev = \"{git_hash}\"")?;
