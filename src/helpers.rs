@@ -28,6 +28,7 @@ pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
     url.push_str("&bug_severity=N%2FA");
     url.push_str("&bug_type=task");
     url.push_str("&bug_status=NEW");
+    url.push_str("&blocked=webgpu-update-wgpu");
     if let Some(message) = &args.message {
         let msg = message
             .replace(' ', "%20")
