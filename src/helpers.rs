@@ -20,37 +20,26 @@ pub struct MachArgs {
 }
 
 pub fn file_bug(args: &BugzillaArgs) -> io::Result<()> {
-    let mut url = "https://bugzilla.mozilla.org/enter_bug.cgi?".to_string();
-    url.push_str("&assigned_to=nobody%40mozilla.org");
-    url.push_str("&product=Core");
-    url.push_str("&component=Graphics%3A%20WebGPU");
-    url.push_str("&priority=P3");
-    url.push_str("&bug_severity=N%2FA");
-    url.push_str("&bug_type=task");
-    url.push_str("&bug_status=NEW");
-    url.push_str("&blocked=webgpu-update-wgpu");
-    if let Some(message) = &args.message {
-        let msg = message
-            .replace(' ', "%20")
-            .replace('(', "%28")
-            .replace(')', "%29")
-            .replace('/', "%2F")
-            .replace(':', "%3A")
-            .replace('[', "%5B")
-            .replace(']', "%5D")
-            .replace('|', "%7C")
-            .replace('~', "%7E")
-            .replace('*', "%2A")
-            .replace('@', "%40")
-            .replace('\'', "%27");
-        url.push_str("&short_desc=");
-        url.push_str(&msg);
+    let mut params = vec![
+        ("assigned_to", "nobody@mozilla.org"),
+        ("product", "Core"),
+        ("component", "Graphics: WebGPU"),
+        ("priority", "P3"),
+        ("bug_severity", "N/A"),
+        ("bug_type", "task"),
+        ("bug_status", "NEW"),
+        ("blocked", "webgpu-update-wgpu"),
+    ];
+    if let Some(msg) = &args.message {
+        params.push(("short_desc", msg));
     }
+    let url =
+        url::Url::parse_with_params("https://bugzilla.mozilla.org/enter_bug.cgi", params).unwrap();
 
     println!("{url}");
 
     if args.open {
-        shell(&PathBuf::from("."), "firefox", &[&url])?;
+        shell(&PathBuf::from("."), "firefox", &[url.as_str()])?;
     }
 
     Ok(())
