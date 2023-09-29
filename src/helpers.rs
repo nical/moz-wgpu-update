@@ -57,7 +57,11 @@ pub fn hg_histedit() -> io::Result<()> {
         .unwrap_or_default()
     {
         Vcs::Mercurial => shell(&config.gecko.path, "hg", &["histedit"])?,
-        Vcs::Git => shell(&config.gecko.path, "git", &["rebase", "-i", "central"])?,
+        Vcs::Git => shell(
+            &config.gecko.path,
+            "git",
+            &["rebase", "-i", "bookmarks/central"],
+        )?,
     };
 
     Ok(())

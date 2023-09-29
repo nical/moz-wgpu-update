@@ -251,12 +251,11 @@ fn read_shell(directory: &Path, cmd: &str, args: &[&str]) -> ShellOutput {
 }
 
 pub fn concat_path(a: &Path, b: &str) -> PathBuf {
-    let mut path = a.to_path_buf();
-    if !b.is_empty() {
-        path.push(&PathBuf::from(b));
+    if b.is_empty() {
+        a.to_path_buf()
+    } else {
+        a.join(&Path::new(b))
     }
-
-    path
 }
 
 fn main() -> io::Result<()> {
