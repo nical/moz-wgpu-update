@@ -13,7 +13,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::{
     env::{current_dir, set_current_dir},
     fmt::Display,
-    fs::File,
+    fs::{self, File},
     io::{self, Read},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
@@ -157,8 +157,12 @@ impl Version {
         .to_string();
 
         let cargo_toml_path = concat_path(&project.path, "Cargo.toml");
-        let reader = io::BufReader::new(File::open(cargo_toml_path)?);
-        let semver = cargo_toml::get_package_attribute(reader, "version")?.unwrap();
+        let cargo_toml_str = fs::read_to_string(cargo_toml_path)?;
+        let semver = ::cargo_toml::Manifest::from_str(&cargo_toml_str)
+            .unwrap()
+            .package()
+            .version()
+            .to_owned();
 
         if pull {
             // Switch back to the previous branch.

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
+cargo_toml = "0.16.3"
 clap = { version = "4.1.4", features = ["derive"] }
 dirs = "4.0"
 format = "0.2.4"

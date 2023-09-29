@@ -108,30 +108,3 @@ fn parse_version<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
 fn parse_git<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
     parse_string_attribute(src, "git")
 }
-
-pub fn get_package_attribute<In: Read>(
-    input: io::BufReader<In>,
-    key: &str,
-) -> io::Result<Option<String>> {
-    let mut in_package = false;
-
-    for line in input.lines() {
-        let line = line?;
-
-        let before_comment = line.split('#').next().unwrap().trim();
-
-        let tokens = tokenize(before_comment);
-
-        if before_comment.starts_with("[package]") {
-            in_package = true;
-        } else if in_package && before_comment.starts_with('[') && before_comment.ends_with(']') {
-            return Ok(None);
-        }
-
-        if let Some(value) = parse_string_attribute(tokens, key) {
-            return Ok(Some(value.to_string()));
-        }
-    }
-
-    Ok(None)
-}
