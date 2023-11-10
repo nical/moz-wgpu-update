@@ -162,6 +162,8 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let mut commits = Vec::new();
     let mut found_at_least_one_pr = false;
 
+    let mut changelog = Vec::new();
+
     for commit_hash in rev_list.iter().rev() {
         println!("{commit_hash}");
 
@@ -183,12 +185,10 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
         for pull in pulls {
             found_at_least_one_pr = true;
             let author = pull.user.clone().map(|user| user.login).unwrap_or_default();
+            let title = pull.title.clone().unwrap_or_default();
+            let number = pull.number;
 
-            println!(
-                "Pull #{} by {author} - {:?}",
-                pull.number,
-                pull.title.clone().unwrap_or_default()
-            );
+            changelog.push(format!(" * #{number} {title}\n   By {author} in https://github.com/gfx-rs/wgpu/pull/{number}"));
 
             let mut commit = Commit {
                 pull_request: Some(pull.number),
@@ -228,6 +228,12 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
         println!(" - That commits have been merged without pull requests.");
         println!(" - Or your github authentication token has expired.");
     }
+
+    println!("\n\n# Changelog\n");
+    for pr in &changelog {
+        println!("{pr}");
+    }
+    println!("");
 
     write_csv_output(&commits, &args.output)?;
 
@@ -347,7 +353,7 @@ fn write_csv_output(items: &[Commit], output: &Option<PathBuf>) -> io::Result<()
     let writer = if let Some(file) = &mut output_file {
         file as &mut dyn Write
     } else {
-        println!("\n\n\n");
+        println!("");
         &mut stdout as &mut dyn Write
     };
 

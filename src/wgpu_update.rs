@@ -110,7 +110,9 @@ fn get_parameters(args: &Args) -> io::Result<Parameters> {
             .expect("Need a `wgpu` revision revision")
     };
 
-    let repository = config.wgpu.repository
+    let repository = config
+        .wgpu
+        .repository
         .clone()
         .unwrap_or_else(|| DEFAULT_WGPU_REPOSITORY.into());
 

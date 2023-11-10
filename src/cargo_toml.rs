@@ -49,7 +49,10 @@ pub fn update_cargo_toml<In: Read, Out: Write>(
         }
 
         if let Some(Version { git_hash, semver }) = new_revision {
-            if parse_git(tokens.clone()).map(|url| url.contains("wgpu")).unwrap_or(false) {
+            if parse_git(tokens.clone())
+                .map(|url| url.contains("wgpu"))
+                .unwrap_or(false)
+            {
                 writeln!(output, "git = \"{override_repository}\"")?;
                 continue;
             }

@@ -1,4 +1,6 @@
-use crate::{cargo_toml, concat_path, read_config_file, read_shell, shell, Version, DEFAULT_NAGA_REPOSITORY};
+use crate::{
+    cargo_toml, concat_path, read_config_file, read_shell, shell, Version, DEFAULT_NAGA_REPOSITORY,
+};
 use clap::Parser;
 use std::{
     fs::File,
