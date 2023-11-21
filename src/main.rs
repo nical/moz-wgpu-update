@@ -256,6 +256,11 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
 }
 
 fn main() -> io::Result<()> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
+
     match &Args::parse() {
         Args::WgpuUpdate(args) => wgpu_update::update_command(args),
         Args::NagaUpdate(args) => naga_update::update_command(args),
