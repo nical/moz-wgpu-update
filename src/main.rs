@@ -81,7 +81,7 @@ fn default_remote() -> String {
     "upstream".into()
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 pub enum Vcs {
     #[default]
     Mercurial,
