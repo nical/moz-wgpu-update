@@ -17,7 +17,6 @@ use std::{
 
 #[derive(Parser, Debug)]
 pub struct AuditArgs {
-    project: String,
     #[arg(long)]
     config: Option<PathBuf>,
     /// Start of the commit range.
@@ -111,13 +110,7 @@ struct Commit {
 pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
     let config = read_config_file(&args.config)?;
 
-    let project = match args.project.as_str() {
-        "wgpu" => &config.wgpu,
-        "naga" => &config.naga,
-        other => {
-            panic!("Unknown project {other:?}");
-        }
-    };
+    let project = &config.wgpu;
 
     let latest_commit_path = project
         .latest_commit
@@ -131,7 +124,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
     let end_commit = args.to.clone().unwrap_or_else(|| "HEAD".to_string());
 
-    let github = Github::new(&args.project, config.github_api_token.clone())?;
+    let github = Github::new("wgpu", config.github_api_token.clone())?;
 
     if args.pull {
         let upstream = &project.upstream_remote;
