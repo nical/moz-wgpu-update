@@ -3,7 +3,6 @@ mod cargo_lock;
 mod cargo_toml;
 mod helpers;
 mod moz_yaml;
-mod naga_update;
 mod wgpu_update;
 
 use anyhow::bail;
@@ -21,15 +20,12 @@ use std::{
 };
 
 const DEFAULT_WGPU_REPOSITORY: &'static str = "https://github.com/gfx-rs/wgpu";
-const DEFAULT_NAGA_REPOSITORY: &'static str = "https://github.com/gfx-rs/naga";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub enum Args {
     /// Update `wgpu` in the `gecko` directory.
     WgpuUpdate(wgpu_update::Args),
-    /// Update `naga` in `wgpu`.
-    NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
     /// List commits to audit.
@@ -258,7 +254,6 @@ pub fn concat_path(a: &Path, b: &str) -> PathBuf {
 fn main() -> io::Result<()> {
     match &Args::parse() {
         Args::WgpuUpdate(args) => wgpu_update::update_command(args),
-        Args::NagaUpdate(args) => naga_update::update_command(args),
         Args::Bugzilla(args) => helpers::file_bug(args),
         Args::Audit(args) => audit::find_commits_to_audit(args),
         Args::Mach(args) => helpers::run_mach_command(args),
