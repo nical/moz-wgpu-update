@@ -1,14 +1,14 @@
+use clap::Parser;
 use std::env::current_dir;
 use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
-use clap::Parser;
 
 use crate::Config;
 
-use crate::Vcs;
 use crate::read_config_file;
 use crate::shell;
+use crate::Vcs;
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -36,10 +36,18 @@ fn fetch_cts_results_from_try(config: &Config, args: &Args) -> io::Result<()> {
     let path = temp_cts_result_dir(config);
     let gecko_dir_name = config.gecko.path.iter().last().unwrap().to_str().unwrap();
 
-    println!(" -- gecko dir: {:?}, parent {:?}", config.gecko.path, config.gecko.path.parent());
+    println!(
+        " -- gecko dir: {:?}, parent {:?}",
+        config.gecko.path,
+        config.gecko.path.parent()
+    );
     println!(" -- creating temporary directory at {path:?}");
     std::fs::create_dir_all(&path)?;
-    shell(&path, &format!("../{gecko_dir_name}/mach"), &["wpt-fetch-logs", &format!("try:{}", args.rev)])?;
+    shell(
+        &path,
+        &format!("../{gecko_dir_name}/mach"),
+        &["wpt-fetch-logs", &format!("try:{}", args.rev)],
+    )?;
 
     Ok(())
 }
@@ -64,17 +72,17 @@ fn update_test_expectations(config: &Config) -> io::Result<()> {
         }
     }
 
-    let mut args: Vec<&str> = vec![
-        "process-reports",
-        "--preset=reset-contradictory",
-    ];
+    let mut args: Vec<&str> = vec!["process-reports", "--preset=reset-contradictory"];
 
     for file in &json_files {
         args.push(&file);
     }
 
     if !shell(&config.gecko.path, "moz-webgpu-cts", &args)?.success() {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Processing the cts test results failed"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Processing the cts test results failed",
+        ));
     }
 
     Ok(())
@@ -103,7 +111,10 @@ pub fn update_cts_expectations_from_try(args: &Args) -> io::Result<()> {
 
     fetch_cts_results_from_try(&config, args)?;
 
-    commit(&config, "(Don't land) uncommitted changes before running the command")?;
+    commit(
+        &config,
+        "(Don't land) uncommitted changes before running the command",
+    )?;
 
     update_test_expectations(&config)?;
 
@@ -111,7 +122,11 @@ pub fn update_cts_expectations_from_try(args: &Args) -> io::Result<()> {
 
     if args.cleanup {
         let path = temp_cts_result_dir(&config);
-        shell(&current_dir().unwrap(), "rm", &["-rf", path.to_str().unwrap()])?;
+        shell(
+            &current_dir().unwrap(),
+            "rm",
+            &["-rf", path.to_str().unwrap()],
+        )?;
     }
 
     Ok(())

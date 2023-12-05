@@ -1,10 +1,10 @@
 mod audit;
 mod cargo_lock;
 mod cargo_toml;
+mod cts;
 mod helpers;
 mod moz_yaml;
 mod wgpu_update;
-mod cts;
 
 use anyhow::bail;
 use clap::Parser;
@@ -269,8 +269,24 @@ fn main() -> io::Result<()> {
 }
 
 fn self_update() -> io::Result<()> {
-    shell(&current_dir().unwrap(), "cargo", &["install", "--git", "https://github.com/nical/moz-wgpu-update"])?;
-    shell(&current_dir().unwrap(), "cargo", &["install", "--git", "https://github.com/ErichDonGubler/moz-webgpu-cts"])?;
+    shell(
+        &current_dir().unwrap(),
+        "cargo",
+        &[
+            "install",
+            "--git",
+            "https://github.com/nical/moz-wgpu-update",
+        ],
+    )?;
+    shell(
+        &current_dir().unwrap(),
+        "cargo",
+        &[
+            "install",
+            "--git",
+            "https://github.com/ErichDonGubler/moz-webgpu-cts",
+        ],
+    )?;
 
     Ok(())
 }
