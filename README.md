@@ -20,18 +20,14 @@ path = "/home/nical/dev/rust/wgpu"
 upstream-remote = "upstream"
 trusted-reviewers = ["nical", "teoxoy", "ErichDonGubler", "jimblandy"]
 latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-wgpu-commit.txt"
-
-[naga]
-path = "/home/nical/dev/rust/naga"
-upstream-remote = "upstream"
-trusted-reviewers = ["nical", "teoxoy", "ErichDonGubler", "jimblandy"]
-latest-commit = "/home/nical/dev/mozilla/moz-wgpu-update/latest-naga-commit.txt"
 ```
 
 `upstream-remote` is the name of the remote git will pull from (for example `upstream` in the command `git pull upstream master`) to get the latest changes. If not specified, the default is "upstream".
 `main-branch` is the project's main branch. It should be `master` for `naga` and `trunk` for `wgpu`.
 
 `github-api-token` is needed by the `audit` command. It is explained later in this document.
+
+Note: if you have a `[naga]` section in the config file, you should remove it. Was removed from the tool after the wgpu and naga repository merge.
 
 The script will look for the configuration file in the current folder, then in the home folder.
 
@@ -77,16 +73,6 @@ If you have already submitted the commits to phabricator and want to re-generate
 $ moz-wpgu wgpu-update --git-hash 98ea3500fd2cfb4b51d5454c662d8eefd940156a --bug 1813547 --skip-preamble --phab-revisions "D168302,D168303,D168304"
 ```
 
-## Updating `naga` in `wgpu`
-
-```bash
-$ moz-wpgu naga-update --auto --branch "naga-up" --test
-```
-
-`--auto` will automatically detect the changes from your local `naga` checkout's master branch. Note that it will pull changes into your master branch. You can also use `--git-hash <hash>` and `--semver <major.minor.patch>` to update to a specific version.
-
-`--branch` lets you specify the branch to write the update into. This defaults to `naga-update`. Note that the branch will be re-created each time the command is run.
-
 # The full auditing and update process
 
 ## The `audit` command
@@ -98,7 +84,7 @@ Before running the command, you must set up a GitHub API token so that the tool 
 Here is an example of using the script to gather information about `wgpu` commits between specific revisions and write the output into `./wgpu-commits.csv`.
 
 ```
-$ moz-wgpu audit wgpu --from c371e7039dac763b08ada0a35f6c11cd71052010 --to HEAD -o ./wgpu-commits.csv
+$ moz-wgpu audit --from c371e7039dac763b08ada0a35f6c11cd71052010 --to HEAD -o ./wgpu-commits.csv
 ```
 
 - `--to` defaults to `HEAD` so we don't actually need to pass it.
@@ -108,11 +94,8 @@ $ moz-wgpu audit wgpu --from c371e7039dac763b08ada0a35f6c11cd71052010 --to HEAD 
 So if you use this tool frequently, the command invocation will probably something like:
 
 ```bash
-# To gather wgpu commits to audit:
-$ moz-wgpu audit wgpu
-
-# To gather `naga` commits to audit:
-$ moz-wgpu audit naga
+# To gather wgpu and naga commits to audit:
+$ moz-wgpu audit
 ```
 
 The output looks like this:
@@ -138,10 +121,6 @@ This has to be appended to the `wgpu-vet` shared spreadsheet.
 The script printed to stdout a csv-formatted list of commits that have to be appended to the `wgpu-vet` shared spreadsheet.
 
 The spreadheet contains a "vetted by" column, and any commit that does not have a name in there must be audited. The spreadsheet generates links to the pull requests. Now is a good time to follow the links of whatever needs auditing, do the audit and add your name in the corresponding cell of the "vetted by" column.
-
-## Repeat the previous steps for `naga`
-
-The audit command works the same way for `wgpu` and `naga`.
 
 ## Prep mozilla-central
 
