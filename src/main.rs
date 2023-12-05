@@ -43,7 +43,6 @@ pub enum Args {
 struct Config {
     gecko: Gecko,
     wgpu: GithubProject,
-    naga: GithubProject,
     github_api_token: Option<String>,
 }
 
