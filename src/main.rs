@@ -36,6 +36,8 @@ pub enum Args {
     Histedit,
     /// Push a try run to Firefox's CI.
     Try,
+    /// Update this tool to its latest version using cargo.
+    SelfUpdate,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -258,5 +260,12 @@ fn main() -> io::Result<()> {
         Args::Mach(args) => helpers::run_mach_command(args),
         Args::Try => helpers::push_to_try(),
         Args::Histedit => helpers::hg_histedit(),
+        Args::SelfUpdate => self_update(),
     }
+}
+
+fn self_update() -> io::Result<()> {
+    shell(&current_dir().unwrap(), "cargo", &["install", "--git", "https://github.com/nical/moz-wgpu-update"])?;
+
+    Ok(())
 }
