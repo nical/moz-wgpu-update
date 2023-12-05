@@ -1,6 +1,5 @@
 use crate::{read_config_file, read_shell, shell};
 use clap::Parser;
-use core::panic;
 use octocrab::{
     models::{
         pulls::{PullRequest, ReviewState},
