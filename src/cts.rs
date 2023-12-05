@@ -12,17 +12,36 @@ use crate::Vcs;
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    /// Try revision to pull results from.
-    #[arg(short, long)]
-    rev: String,
-
-    /// Remove the data after running the command
-    #[arg(long)]
-    cleanup: bool,
+    #[clap(subcommand)]
+    sub_command: SubCommand,
 
     /// Config file to use.
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
+}
+
+#[derive(Parser, Debug)]
+pub enum SubCommand {
+    /// Fetch the provided try revision into a temporary directory.
+    Fetch {
+        /// The try revision to fetch results from.
+        rev: String,
+    },
+    /// Delete the temporary directory.
+    Cleanup,
+    /// Process test results in the temporary directory and update test
+    /// expectations in gecko.
+    Expectations {
+        /// Try revision to pull results from.
+        ///
+        /// If not specified, read from the temporary directory
+        #[arg(long)]
+        fetch: Option<String>,
+
+        /// Remove the data after running the command
+        #[arg(long)]
+        cleanup: bool,
+    },
 }
 
 fn temp_cts_result_dir(config: &Config) -> PathBuf {
@@ -32,7 +51,7 @@ fn temp_cts_result_dir(config: &Config) -> PathBuf {
     path
 }
 
-fn fetch_cts_results_from_try(config: &Config, args: &Args) -> io::Result<()> {
+fn fetch_cts_results_from_try(config: &Config, rev: &str) -> io::Result<()> {
     let path = temp_cts_result_dir(config);
     let gecko_dir_name = config.gecko.path.iter().last().unwrap().to_str().unwrap();
 
@@ -46,7 +65,7 @@ fn fetch_cts_results_from_try(config: &Config, args: &Args) -> io::Result<()> {
     shell(
         &path,
         &format!("../{gecko_dir_name}/mach"),
-        &["wpt-fetch-logs", &format!("try:{}", args.rev)],
+        &["wpt-fetch-logs", &format!("try:{rev}")],
     )?;
 
     Ok(())
@@ -106,28 +125,42 @@ fn commit(config: &Config, commit_msg: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub fn update_cts_expectations_from_try(args: &Args) -> io::Result<()> {
-    let config = read_config_file(&args.config)?;
-
-    fetch_cts_results_from_try(&config, args)?;
-
-    commit(
-        &config,
-        "(Don't land) uncommitted changes before running the command",
+fn cleanup_command(config: &Config) -> io::Result<()> {
+    let path = temp_cts_result_dir(&config);
+    shell(
+        &current_dir().unwrap(),
+        "rm",
+        &["-rf", path.to_str().unwrap()],
     )?;
 
-    update_test_expectations(&config)?;
-
-    commit(&config, "Update WebGPU CTS test expectations")?;
-
-    if args.cleanup {
-        let path = temp_cts_result_dir(&config);
-        shell(
-            &current_dir().unwrap(),
-            "rm",
-            &["-rf", path.to_str().unwrap()],
-        )?;
-    }
-
     Ok(())
+}
+
+pub fn command(args: &Args) -> io::Result<()> {
+    let config = read_config_file(&args.config)?;
+
+    match &args.sub_command {
+        SubCommand::Cleanup => cleanup_command(&config),
+        SubCommand::Fetch { rev } => fetch_cts_results_from_try(&config, &rev),
+        SubCommand::Expectations { fetch, cleanup } => {
+            if let Some(rev) = fetch {
+                fetch_cts_results_from_try(&config, &rev)?;
+            }
+
+            commit(
+                &config,
+                "(Don't land) uncommitted changes before running the command",
+            )?;
+
+            update_test_expectations(&config)?;
+
+            commit(&config, "Update WebGPU CTS test expectations")?;
+
+            if *cleanup {
+                cleanup_command(&config)?;
+            }
+
+            Ok(())
+        }
+    }
 }

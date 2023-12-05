@@ -39,8 +39,8 @@ pub enum Args {
     Try,
     /// Update this tool to its latest version using cargo.
     SelfUpdate,
-    /// Fetch results from a try revision and update the CTS test expectations accordingly.
-    UpdateCtsExpectationsFromTry(cts::Args),
+    /// CTS related commands.
+    Cts(cts::Args),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -264,7 +264,7 @@ fn main() -> io::Result<()> {
         Args::Try => helpers::push_to_try(),
         Args::Histedit => helpers::hg_histedit(),
         Args::SelfUpdate => self_update(),
-        Args::UpdateCtsExpectationsFromTry(args) => cts::update_cts_expectations_from_try(args),
+        Args::Cts(args) => cts::command(args),
     }
 }
 
