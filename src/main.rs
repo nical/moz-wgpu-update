@@ -37,7 +37,7 @@ pub enum Args {
     Histedit,
     /// Push a try run to Firefox's CI.
     Try {
-        /// request that all jobs be re-run <REBUILD> times.
+        /// Request that all jobs be re-run <REBUILD> times.
         #[arg(long)]
         rebuild: Option<u8>,
     },

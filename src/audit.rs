@@ -99,6 +99,7 @@ pub fn read_latest_audit(path: &Path) -> io::Result<String> {
 
 struct Commit {
     pull_request: Option<u64>,
+    pull_request_title: String,
     hash: String,
     author: String,
     reviewers: Vec<String>,
@@ -166,6 +167,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
             // This is less common but it can happen that commits are made without pull a request.
             commits.push(Commit {
                 pull_request: None,
+                pull_request_title: String::new(),
                 author: String::new(),
                 reviewers: Vec::new(),
                 merger: None,
@@ -184,6 +186,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
             let mut commit = Commit {
                 pull_request: Some(pull.number),
+                pull_request_title: title.clone(),
                 author,
                 hash: commit_hash.clone(),
                 reviewers: reviewers_for_pull_request(&github, pull.number),
@@ -220,6 +223,8 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
         println!(" - That commits have been merged without pull requests.");
         println!(" - Or your github authentication token has expired.");
     }
+
+    print_audit_list(&commits)?;
 
     println!("\n\n# Changelog\n");
     for pr in &changelog {
@@ -334,6 +339,34 @@ fn comma_separated_string(items: &[String]) -> String {
     }
 
     result
+}
+
+fn print_audit_list(items: &[Commit]) -> io::Result<()> {
+    println!("\n# Commits to audit\n");
+
+    for item in items {
+        if !item.vetted_by.is_empty() {
+            continue;
+        }
+
+        if let Some(pr_num) = &item.pull_request {
+            println!(
+                " * #{pr_num}: {} By {}\n   In https://github.com/gfx-rs/wgpu/pull/{pr_num}\n   Commit: https://github.com/gfx-rs/wgpu/commit/{}",
+                item.pull_request_title,
+                item.author,
+                item.hash,
+            );
+        } else {
+            println!(
+                " * (No pull request)\n   Commit: https://github.com/gfx-rs/wgpu/commit/{}",
+                item.hash,
+            );            
+        }
+    }
+
+    println!("");
+
+    Ok(())
 }
 
 fn write_csv_output(items: &[Commit], output: &Option<PathBuf>) -> io::Result<()> {
