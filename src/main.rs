@@ -36,7 +36,11 @@ pub enum Args {
     /// Run `hg histedit` in the `gecko` directory.
     Histedit,
     /// Push a try run to Firefox's CI.
-    Try,
+    Try {
+        /// request that all jobs be re-run <REBUILD> times.
+        #[arg(long)]
+        rebuild: Option<u8>,
+    },
     /// Update this tool to its latest version using cargo.
     SelfUpdate,
     /// CTS related commands.
@@ -261,7 +265,7 @@ fn main() -> io::Result<()> {
         Args::Bugzilla(args) => helpers::file_bug(args),
         Args::Audit(args) => audit::find_commits_to_audit(args),
         Args::Mach(args) => helpers::run_mach_command(args),
-        Args::Try => helpers::push_to_try(),
+        Args::Try { rebuild } => helpers::push_to_try(*rebuild),
         Args::Histedit => helpers::hg_histedit(),
         Args::SelfUpdate => self_update(),
         Args::Cts(args) => cts::command(args),

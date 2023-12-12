@@ -85,10 +85,19 @@ pub fn run_mach_command(args: &MachArgs) -> io::Result<()> {
     Ok(())
 }
 
-pub fn push_to_try() -> io::Result<()> {
+pub fn push_to_try(rebuild: Option<u8>) -> io::Result<()> {
     let config = read_config_file(&None)?;
 
-    shell(&config.gecko.path, "./mach", &["try", "--preset", "webgpu"])?;
+    let mut args: Vec<&str> = vec!["try", "--preset", "webgpu"];
+    let tmp;
+
+    if let Some(count) = rebuild {
+        tmp = format!("{count}");
+        args.push("--rebuild");
+        args.push(&tmp);
+    }
+
+    shell(&config.gecko.path, "./mach", &args)?;
 
     Ok(())
 }
