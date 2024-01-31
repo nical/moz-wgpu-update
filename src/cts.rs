@@ -42,6 +42,13 @@ pub enum SubCommand {
         #[arg(long)]
         cleanup: bool,
     },
+    /// Run the CTS locally
+    Run {
+        /// The test query
+        ///
+        /// For example "webgpu:api,validation,buffer,destroy:*"
+        query: String,
+    }
 }
 
 fn temp_cts_result_dir(config: &Config) -> PathBuf {
@@ -136,6 +143,30 @@ fn cleanup_command(config: &Config) -> io::Result<()> {
     Ok(())
 }
 
+fn run_command(config: &Config, query: &str) -> io::Result<()> {
+    let mc = &config.gecko.path;
+
+    let mut test_cmd = "_mozilla/webgpu/cts/webgpu/".to_string();
+
+    let query = query.strip_prefix("q=").unwrap_or(query);
+    let query = query.strip_prefix("webgpu:").unwrap_or(query);
+    let path = query.split(":").next().unwrap_or(query);
+    for item in path.split(",") {
+        test_cmd.push_str(item);
+        test_cmd.push_str("/");
+    }
+    test_cmd.push_str("cts.https.html?q=webgpu:");
+    test_cmd.push_str(query);
+
+    shell(
+        mc,
+        "./mach",
+        &["wpt", &test_cmd]
+    )?;
+
+    Ok(())
+}
+
 pub fn command(args: &Args) -> io::Result<()> {
     let config = read_config_file(&args.config)?;
 
@@ -161,6 +192,9 @@ pub fn command(args: &Args) -> io::Result<()> {
             }
 
             Ok(())
+        }
+        SubCommand::Run { query } => {
+            run_command(&config, &query)
         }
     }
 }
