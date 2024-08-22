@@ -212,7 +212,6 @@ fn update_wgpu(params: &Parameters) -> io::Result<Vec<Delta>> {
         Delta::new("wgpu-hal"),
         Delta::new("wgpu-types"),
         Delta::new("naga"),
-        Delta::new("d3d12"),
         Delta::new("ash"),
     ];
 
@@ -457,7 +456,7 @@ fn vet_from_base_revision(params: &Parameters, deltas: &[Delta]) -> io::Result<(
     assert!(commit.success());
 
     // Run cargo vet to see if there are any other new crate versions that were imported
-    // besides wgpu ones (typically naga, d3d12).
+    // besides wgpu ones (typically naga).
     // TODO: parse the output and add them to the commit in the common cases.
     let _ = shell(&params.gecko_path, "./mach", &["cargo", "vet"]);
 
