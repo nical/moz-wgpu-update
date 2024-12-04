@@ -1,4 +1,6 @@
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, Read, Write};
+
+use toml_edit::{Document, Item, Table, Value};
 
 use crate::Version;
 
@@ -8,130 +10,81 @@ pub fn update_cargo_toml<In: Read, Out: Write>(
     updates: &[(&str, &Version)],
     override_repository: &str,
 ) -> io::Result<()> {
-    //let mut group = String::new();
-    let mut new_revision = None;
-    let mut saw_rev = false;
+    fn adjust_wgpu_deps(
+        path: &str,
+        dependencies: &mut Item,
+        updates: &[(&str, &Version)],
+        override_repository: &str,
+    ) {
+        let dependencies = dependencies
+            .as_table_like_mut()
+            .unwrap_or_else(|| panic!("`{path}` is not table-like :scream:"));
 
-    for line in input.lines() {
-        let line = line?;
-
-        let trimmed = line.trim().split('#').next().unwrap();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            //group = trimmed.to_string();
-            new_revision = None;
-            saw_rev = false;
-
-            let group_name = trimmed.trim_start_matches('[').trim_end_matches(']');
-            for (crate_name, new_rev) in updates {
-                //println!("{:?} {:?}", crate_name, group_name);
-                if group_name.ends_with(&format!("dependencies.{crate_name}")) {
-                    new_revision = Some(new_rev);
-                    break;
-                }
-            }
-        }
-
-        let tokens = tokenize(&line);
-
-        if let Some(package_name) =
-            parse_package_name(tokens.clone()).or_else(|| parse_git(tokens.clone()))
-        {
-            if saw_rev {
-                eprintln!("Warning: found the package name or url after the revision or version, updates may have been missed.");
-            }
-
-            for (crate_name, new_rev) in updates {
-                if package_name == *crate_name {
-                    new_revision = Some(new_rev);
-                    break;
-                }
-            }
-        }
-
-        if let Some(Version { git_hash, semver }) = new_revision {
-            if parse_git(tokens.clone())
-                .map(|url| url.contains("wgpu"))
-                .unwrap_or(false)
+        for (dep_name, dep_source) in dependencies.iter_mut() {
+            let dep_name = &*dep_name;
+            let package = dep_source
+                .as_table_like()
+                .and_then(|tbl| tbl.get("package"))
+                .and_then(|pkg| pkg.as_str());
+            let crate_name = package.as_ref().unwrap_or(&dep_name);
+            if let Some(version_to_apply) = updates
+                .iter()
+                .find_map(|(name, ver)| (name == crate_name).then_some(ver))
             {
-                writeln!(output, "git = \"{override_repository}\"")?;
-                continue;
+                let mut new_table = match dep_source {
+                    // A version string; we're just gonna replace the whole dang thing
+                    Item::Value(Value::String(_)) => Table::new(),
+                    Item::Table(tbl) => tbl.clone(),
+                    Item::None | Item::ArrayOfTables(_) | Item::Value(_) => {
+                        todo!("TODO: no idea what to do here yet")
+                    }
+                };
+                {
+                    // Remove any dep. fields relevant to source selection.
+                    new_table.remove("path");
+                    new_table.remove("branch");
+                    new_table.remove("registry");
+                    new_table.remove("version");
+                }
+                new_table.extend([
+                    ("git", override_repository),
+                    ("rev", &version_to_apply.git_hash),
+                ]);
+                *dep_source = Item::Table(new_table);
             }
-
-            if !git_hash.is_empty() && parse_rev(tokens.clone()).is_some() {
-                saw_rev = true;
-                writeln!(output, "rev = \"{git_hash}\"")?;
-                continue;
-            }
-
-            if !semver.is_empty() && parse_version(tokens.clone()).is_some() {
-                saw_rev = true;
-                writeln!(output, "version = \"{semver}\"")?;
-                continue;
-            }
-        }
-
-        writeln!(output, "{line}")?;
-    }
-
-    Ok(())
-}
-
-fn tokenize(src: &str) -> impl Iterator<Item = &str> + Clone {
-    let trimmed = src.trim().split('#').next().unwrap();
-    trimmed.split_ascii_whitespace()
-}
-
-fn parse_string_attribute<'a, 'b>(
-    mut src: impl Iterator<Item = &'a str>,
-    attrib_name: &'b str,
-) -> Option<&'a str> {
-    if src.next() == Some(attrib_name) && src.next() == Some("=") {
-        let name = src.next()?.strip_prefix('"')?.strip_suffix('"')?;
-        return Some(name);
-    }
-
-    None
-}
-
-fn parse_package_name<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
-    parse_string_attribute(src, "package")
-}
-
-fn parse_rev<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
-    parse_string_attribute(src, "rev")
-}
-
-fn parse_version<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
-    parse_string_attribute(src, "version")
-}
-
-fn parse_git<'a>(src: impl Iterator<Item = &'a str>) -> Option<&'a str> {
-    parse_string_attribute(src, "git")
-}
-
-pub fn get_package_attribute<In: Read>(
-    input: io::BufReader<In>,
-    key: &str,
-) -> io::Result<Option<String>> {
-    let mut in_package = false;
-
-    for line in input.lines() {
-        let line = line?;
-
-        let before_comment = line.split('#').next().unwrap().trim();
-
-        let tokens = tokenize(before_comment);
-
-        if before_comment.starts_with("[package]") {
-            in_package = true;
-        } else if in_package && before_comment.starts_with('[') && before_comment.ends_with(']') {
-            return Ok(None);
-        }
-
-        if let Some(value) = parse_string_attribute(tokens, key) {
-            return Ok(Some(value.to_string()));
         }
     }
 
-    Ok(None)
+    let mut document = io::read_to_string(input)
+        .unwrap()
+        .parse::<Document>()
+        .expect("failed to read `Cargo.toml` file");
+
+    for (key, val) in document.iter_mut() {
+        if key == "dependencies" {
+            adjust_wgpu_deps(&*key, val, updates, override_repository);
+        } else if key.starts_with("target") {
+            let target_table = val
+                .as_table_like_mut()
+                .expect("`target` key not table-like :scream:");
+            for (key, val) in target_table.iter_mut() {
+                if key.starts_with("cfg(") {
+                    let cfg_table = val
+                        .as_table_like_mut()
+                        .expect("`target.{key}` key not table-like :scream:");
+                    if let Some(deps) = cfg_table.get_mut("dependencies") {
+                        adjust_wgpu_deps(
+                            &format!("target.{key}.dependencies"),
+                            deps,
+                            updates,
+                            override_repository,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    let document = document.to_string();
+    output.write_all(document.as_bytes())
 }
