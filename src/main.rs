@@ -3,12 +3,13 @@ mod cargo_lock;
 mod cargo_toml;
 mod helpers;
 mod moz_yaml;
-mod naga_update;
+// mod naga_update;
 mod wgpu_update;
 
 use anyhow::bail;
 use clap::Parser;
 use format::lazy_format;
+use helpers::search_for_moz_central_ckt;
 use serde_derive::{Deserialize, Serialize};
 use std::{
     env::{current_dir, set_current_dir},
@@ -21,15 +22,15 @@ use std::{
 };
 
 const DEFAULT_WGPU_REPOSITORY: &'static str = "https://github.com/gfx-rs/wgpu";
-const DEFAULT_NAGA_REPOSITORY: &'static str = "https://github.com/gfx-rs/naga";
+// const DEFAULT_NAGA_REPOSITORY: &'static str = "https://github.com/gfx-rs/naga";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub enum Args {
     /// Update `wgpu` in the `gecko` directory.
     WgpuUpdate(wgpu_update::Args),
-    /// Update `naga` in `wgpu`.
-    NagaUpdate(naga_update::Args),
+    // /// Update `naga` in `wgpu`.
+    // NagaUpdate(naga_update::Args),
     /// File a bug for the update.
     Bugzilla(helpers::BugzillaArgs),
     /// List commits to audit.
@@ -42,17 +43,31 @@ pub enum Args {
     Try,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug)]
 struct Config {
     gecko: Gecko,
     wgpu: GithubProject,
-    naga: GithubProject,
+    // naga: GithubProject,
+    github_api_token: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct Gecko {
+    path: PathBuf,
+    vcs: Vcs,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct ConfigFile {
+    gecko: Option<ConfigFileGecko>,
+    wgpu: GithubProject,
+    // naga: GithubProject,
     github_api_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Gecko {
+pub struct ConfigFileGecko {
     path: PathBuf,
     vcs: Option<String>,
 }
@@ -189,9 +204,33 @@ fn read_config_file(path: &Option<PathBuf>) -> io::Result<Config> {
 
     let mut buf = String::new();
     config_file.read_to_string(&mut buf)?;
-    let config: Config = toml::from_str(&buf).unwrap();
+    let ConfigFile {
+        gecko,
+        wgpu,
+        // naga,
+        github_api_token,
+    } = toml::from_str(&buf).unwrap();
 
-    Ok(config)
+    let gecko = gecko
+        .map(|ConfigFileGecko { path, vcs }| {
+            Ok(Gecko {
+                path,
+                vcs: vcs
+                    .as_deref()
+                    .map(Vcs::from_str)
+                    .unwrap()
+                    .unwrap_or_default(),
+            })
+        })
+        .unwrap_or_else(search_for_moz_central_ckt)
+        .unwrap();
+
+    Ok(Config {
+        gecko,
+        wgpu,
+        // naga,
+        github_api_token,
+    })
 }
 
 fn shell(directory: &Path, cmd: &str, args: &[&str]) -> io::Result<ExitStatus> {
@@ -263,7 +302,7 @@ fn main() -> io::Result<()> {
 
     match &Args::parse() {
         Args::WgpuUpdate(args) => wgpu_update::update_command(args),
-        Args::NagaUpdate(args) => naga_update::update_command(args),
+        // Args::NagaUpdate(args) => naga_update::update_command(args),
         Args::Bugzilla(args) => helpers::file_bug(args),
         Args::Audit(args) => audit::find_commits_to_audit(args),
         Args::Mach(args) => helpers::run_mach_command(args),

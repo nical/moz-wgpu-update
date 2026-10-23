@@ -113,7 +113,7 @@ pub fn find_commits_to_audit(args: &AuditArgs) -> io::Result<()> {
 
     let project = match args.project.as_str() {
         "wgpu" => &config.wgpu,
-        "naga" => &config.naga,
+        // "naga" => &config.naga,
         other => {
             panic!("Unknown project {other:?}");
         }
